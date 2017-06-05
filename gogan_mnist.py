@@ -9,19 +9,15 @@ if 'DISPLAY' not in os.environ:
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from tensorflow.examples.tutorials.mnist import input_data
+from models import *
 
-DIM_Z = 16
-DIM_X = 28 * 28
+DIM_Z = 32
+
 W_CLIP = 0.01
 BATCH_SIZE = 100
 
-
 # Load dataset
 data = input_data.read_data_sets('data/mnist/', one_hot=True)
-
-trainimg = data.train.images
-testimg = data.test.images
-
 
 
 def plot(samples, figId=None):
@@ -43,85 +39,47 @@ def plot(samples, figId=None):
 
     return fig
 
-def xavier_init(size):
-    _in_dim = size[0]
-    _stddev = 1. / tf.sqrt(_in_dim / 2.)
-    return tf.random_normal(shape=size, stddev=_stddev)
-
 def sample_z(m, n):
     return np.random.uniform(-1., 1., size=[m, n])
 
 
-# Simple generator
-def simple_G(z, params=None, dim_h=128):
-    if params is not None:
-        raise NotImplementedError
-
-    G_FC1_W = tf.Variable(xavier_init([DIM_Z, dim_h]))
-    G_FC1_B = tf.Variable(tf.zeros(shape=[dim_h]))
-
-    G_FC2_W = tf.Variable(xavier_init([dim_h, dim_h]))
-    G_FC2_B = tf.Variable(tf.zeros(shape=[dim_h]))
-
-    G_FC3_W = tf.Variable(xavier_init([dim_h, DIM_X]))
-    G_FC3_B = tf.Variable(tf.zeros(shape=[DIM_X]))
-
-    theta_G = [G_FC1_W, G_FC1_B, G_FC2_W, G_FC2_B, G_FC3_W, G_FC3_B]
-
-    G_h1 = tf.nn.relu(tf.matmul(z, G_FC1_W) + G_FC1_B)
-    G_h2 = tf.nn.relu(tf.matmul(G_h1, G_FC2_W) + G_FC2_B)
-    G_h3 = tf.nn.sigmoid(tf.matmul(G_h2, G_FC3_W) + G_FC3_B)
-
-    return G_h3, theta_G
-
-# Simple discriminator
-def simple_D(x, params=None, dim_h=128):
-    if params is None:
-        D_FC1_W = tf.Variable(xavier_init([DIM_X, dim_h]))
-        D_FC1_B = tf.Variable(tf.zeros(shape=[dim_h]))
-
-        D_FC2_W = tf.Variable(xavier_init([dim_h, dim_h]))
-        D_FC2_B = tf.Variable(tf.zeros(shape=[dim_h]))
-
-        D_FC3_W = tf.Variable(xavier_init([dim_h, 1]))  # How about solving 2-class classification?
-        D_FC3_B = tf.Variable(tf.zeros(shape=[1]))
-
-        theta_D = [D_FC1_W, D_FC1_B, D_FC2_W, D_FC2_B, D_FC3_W, D_FC3_B]
-    else:
-        theta_D = params
-        D_FC1_W = theta_D[0]
-        D_FC1_B = theta_D[1]
-        D_FC2_W = theta_D[2]
-        D_FC2_B = theta_D[3]
-        D_FC3_W = theta_D[4]
-        D_FC3_B = theta_D[5]
-
-    D_h1 = tf.nn.relu(tf.matmul(x, D_FC1_W) + D_FC1_B)
-    D_h2 = tf.nn.relu(tf.matmul(D_h1, D_FC2_W) + D_FC2_B)
-    D_h3 = tf.matmul(D_h2, D_FC3_W) + D_FC3_B           # What if we add a sigmoid function here?
-
-    return D_h3, theta_D
+def_gen = simple_gen
+def_dis = lambda x, name, **kwargs: simple_net(x, name, 1, **kwargs)
 
 
-### WGAN
 # Instantiate network
 z0 = tf.placeholder(tf.float32, shape=[None, DIM_Z])
-x0 = tf.placeholder(tf.float32, shape=[None, DIM_X])
+x0 = tf.placeholder(tf.float32, shape=[None, 784])
+x1 = tf.reshape(x0, [-1,28,28,1])
 
-G, theta_G = simple_G(z0)
-D_real, theta_D = simple_D(x0)
-D_fake, _ = simple_D(G, theta_D)
+global_step = tf.Variable(0, trainable=False)
+# lr = tf.train.exponential_decay(0.001, global_step, 500 * 10, 0.96, staircase=True)   # *0.96 per 10 epochs
+lr = tf.constant(0.0001)
+'''
+Hexa's comments
+- Unlike classification problems, using a fixed/small LR leads to better results in GAN trainings
+  e.g.) 1e-6 for Cifar-10, 10e-4 for MNIST
+- # of training steps is also important. You should investigate the output images with Tensorboard
+'''
+increment_step = tf.assign_add(global_step, 1)
 
-# Loss function for WGAN
-D_loss = tf.reduce_mean(D_real) - tf.reduce_mean(D_fake)
+# TODO: Refactoring
+### WGAN
+G = def_gen(z0, 'WGAN_G', bn=False)
+D_real = def_dis(x1, 'WGAN_D', bn=False)
+D_fake = def_dis(G, 'WGAN_D', bn=False, reuse=True)
+
+# Loss functions
+D_loss = tf.reduce_mean(D_fake) - tf.reduce_mean(D_real)
 G_loss = -tf.reduce_mean(D_fake)
 
-D_solver = (tf.train.RMSPropOptimizer(learning_rate=1e-4))  \
-            .minimize(-D_loss, var_list=theta_D)
-G_solver = (tf.train.RMSPropOptimizer(learning_rate=1e-4))  \
-            .minimize(G_loss, var_list=theta_G)
+D_solver = (tf.train.RMSPropOptimizer(learning_rate=lr))  \
+            .minimize(D_loss, var_list=get_trainable_params('WGAN_D'))
+G_solver = (tf.train.RMSPropOptimizer(learning_rate=lr))  \
+            .minimize(G_loss, var_list=get_trainable_params('WGAN_G'))
 
-clip_D = [p.assign(tf.clip_by_value(p, -W_CLIP, W_CLIP)) for p in theta_D]
+clip_D = [p.assign(tf.clip_by_value(p, -W_CLIP, W_CLIP))
+            for p in get_trainable_params('WGAN_D')]
 
 
 ### GoGAN
@@ -129,38 +87,51 @@ epsilon = 0.5   # Margin
 l1 = 1.0        # Disc. loss
 l2 = 0.5        # Rank. loss
 
-G1, theta_G1 = simple_G(z0)
-D1_real, theta_D1 = simple_D(x0)
-D1_fake, theta_D1 = simple_D(G1, theta_D1)
-
-G2, theta_G2 = simple_G(z0)
-D2_real, theta_D2 = simple_D(x0)
-D2_fake, theta_D2 = simple_D(G2, theta_D2)
+G1 = def_gen(z0, 'GoGAN_G1', bn=False)
+D1_real = def_dis(x1, 'GoGAN_D1', bn=False)
+D1_fake = def_dis(G1, 'GoGAN_D1', bn=False, reuse=True)
 
 D1_loss = tf.reduce_mean(tf.nn.relu(D1_fake + epsilon - D1_real))
 G1_loss = -tf.reduce_mean(D1_fake)
+
+clip_D1 = [p.assign(tf.clip_by_value(p, -W_CLIP, W_CLIP))
+            for p in get_trainable_params('GoGAN_D1')]
+
+G2 = def_gen(z0, 'GoGAN_G2', bn=False)
+D2_real = def_dis(x1, 'GoGAN_D2', bn=False)
+D2_fake = def_dis(G2, 'GoGAN_D2', bn=False, reuse=True)
 
 D2_loss = tf.reduce_mean(tf.nn.relu(D2_fake + epsilon - D2_real)) * l1 \
         + tf.reduce_mean(tf.nn.relu(D1_fake + 2 * epsilon - D2_real)) * l2
 G2_loss = -tf.reduce_mean(D2_fake)
 
-clip_D1 = [p.assign(tf.clip_by_value(p, -W_CLIP, W_CLIP)) for p in theta_D1]
-clip_D2 = [p.assign(tf.clip_by_value(p, -W_CLIP, W_CLIP)) for p in theta_D2]
+clip_D2 = [p.assign(tf.clip_by_value(p, -W_CLIP, W_CLIP))
+            for p in get_trainable_params('GoGAN_D2')]
 
-G1_solver = (tf.train.RMSPropOptimizer(learning_rate=1e-4)).minimize(G1_loss, var_list=theta_G1)
-D1_solver = (tf.train.RMSPropOptimizer(learning_rate=1e-4)).minimize(D1_loss, var_list=theta_D1)
-G2_solver = (tf.train.RMSPropOptimizer(learning_rate=1e-4)).minimize(G2_loss, var_list=theta_G2)
-D2_solver = (tf.train.RMSPropOptimizer(learning_rate=1e-4)).minimize(D2_loss, var_list=theta_D2)
+G1_solver = (tf.train.RMSPropOptimizer(learning_rate=lr)) \
+            .minimize(G1_loss, var_list=get_trainable_params('GoGAN_G1'))
+D1_solver = (tf.train.RMSPropOptimizer(learning_rate=lr)) \
+            .minimize(D1_loss, var_list=get_trainable_params('GoGAN_D1'))
+G2_solver = (tf.train.RMSPropOptimizer(learning_rate=lr)) \
+            .minimize(G2_loss, var_list=get_trainable_params('GoGAN_G2'))
+D2_solver = (tf.train.RMSPropOptimizer(learning_rate=lr)) \
+            .minimize(D2_loss, var_list=get_trainable_params('GoGAN_D2'))
+
+
+copy_G = ops_copy_vars(src_scope='GoGAN_G1', dst_scope='GoGAN_G2')
+copy_D = ops_copy_vars(src_scope='GoGAN_D1', dst_scope='GoGAN_D2')
 
 
 # Session
 sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))     # XXX: Is this necessary?
+#sess = tf.Session()
 sess.run(tf.global_variables_initializer())
 
 # Initial setup for visualization
 outputs = [G, G1, G2]
 figs = [None] * len(outputs)
 fig_names = ['fig_WGAN_gen_{:04d}.png', 'fig_GGAN_1st_{:04d}.png', 'fig_GGAN_2nd_{:04d}.png']
+output_names = ['WGAN', 'GoGAN_1st', 'GoGAN_2nd']
 
 if not os.path.exists('out/'):
     os.makedirs('out/')
@@ -174,11 +145,8 @@ N_STAGE1 = 500 * 500
 for it in range(N_ITERS):
     if it == N_STAGE1:
         # Copy vars. and start phase-2
-        for var_from, var_to in zip(theta_D1, theta_D2):
-            sess.run(var_to.assign(var_from))
-        for var_from, var_to in zip(theta_G1, theta_G2):
-            sess.run(var_to.assign(var_from))
-
+        sess.run(copy_G)
+        sess.run(copy_D)
         pass
 
     # Train WGAN
@@ -225,14 +193,19 @@ for it in range(N_ITERS):
         loss_GGAN_D2 = 0
         loss_GGAN_G2 = 0
 
+
+    # Increment steps
+    _, cur_lr = sess.run([increment_step, lr])
+
     plt.ion()
     if it % 100 == 0:
-        print('{:10d}, {: 1.4f}, {: 1.4f}, {: 1.4f}, {: 1.4f}, {: 1.4f}, {: 1.4f}') \
-                .format(it, loss_WGAN_D, loss_WGAN_G, loss_GGAN_D1, loss_GGAN_G1, loss_GGAN_D2, loss_GGAN_G2)
+        print('{:10d}, {:1.4f}, {: 1.4f}, {: 1.4f}, {: 1.4f}, {: 1.4f}, {: 1.4f}, {: 1.4f}') \
+                .format(it, cur_lr, loss_WGAN_D, loss_WGAN_G, loss_GGAN_D1, loss_GGAN_G1, loss_GGAN_D2, loss_GGAN_G2)
 
+        rand_latent = sample_z(16, DIM_Z)
         if it % 1000 == 0:
             for i, output in enumerate(outputs):
-                samples = sess.run(output, feed_dict={z0: sample_z(16, DIM_Z)})
+                samples = sess.run(output, feed_dict={z0: rand_latent})
                 figs[i] = plot(samples, i)
                 figs[i].canvas.draw()
 
