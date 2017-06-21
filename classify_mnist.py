@@ -40,7 +40,7 @@ lr = tf.train.exponential_decay(0.01, global_step, 500, 0.96, staircase=True)   
 training_epochs = 200
 batch_size = 100
 
-out = simple_cnn(x2, n_out=10, is_training=True)
+out = simple_cnn(x2, n_out=10, is_training=True, last_act=tf.identity)
 y_pred = tf.nn.softmax(out)
 
 loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=out, labels=y0))
@@ -60,8 +60,11 @@ tst_accu = tf.reduce_mean(tf.cast(tst_corr, tf.float32))
 
 
 # Let's start
-sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
+sess = tf.Session()
 sess.run(tf.initialize_all_variables())
+
+print('{:>7}, {:>7}, {:>7}, {:>7}, {:>7}, {:>7}') \
+    .format('Iters', 'cur_LR', 'loss', 'accu.', 'tstloss', 'tstaccu')
 
 for it in xrange(training_epochs * 500):
     batch_xs, batch_ys = data.train.next_batch(batch_size)  # Sample a batch
@@ -75,6 +78,6 @@ for it in xrange(training_epochs * 500):
         batch_tst_xs, batch_tst_ys = data.test.next_batch(10000)        # full batch
         cur_tstloss, cur_tstaccu = sess.run([tst_loss, tst_accu], feed_dict={x0: batch_tst_xs, y0: batch_tst_ys})
 
-        print '{:5d}, {:1.4f}, {:1.4f}, {:1.4f}, {:1.4f}, {:1.4f}'   \
+        print '{:7d}, {: 1.4f}, {: 1.4f}, {: 1.4f}, {: 1.4f}, {: 1.4f}'   \
                 .format(it / 100, cur_lr, cur_loss, cur_accu, cur_tstloss, cur_tstaccu)
 
