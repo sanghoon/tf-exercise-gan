@@ -1,50 +1,37 @@
 #!/usr/bin/env python
 import tensorflow as tf
 import numpy as np
-import os
-# if DISPLAY is not defined
-if 'DISPLAY' not in os.environ:
-    import matplotlib
-    matplotlib.use('Agg')       # Use a different backend
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 from tensorflow.examples.tutorials.mnist import input_data
 from models import *
+from utils import *
+from common import *
 
-DIM_Z = 32
+# TODO: Refactoring
+args = parse_args(models.keys())
+if args.net is None:
+    args.net = models.keys()[0]
 
-W_CLIP = 0.01
-BATCH_SIZE = 100
+print args
+
+W_CLIP = args.w_clip        # 0.01
+LR = args.lr
+
+if len(args.tag) == 0:
+    args.tag = 'gogan'
+
+BASE_FOLDER = 'out_{}/{}_WC{}_LR{}/'.format(args.tag, args.net, W_CLIP, args.lr)
+OUT_FOLDER = os.path.join(BASE_FOLDER, 'out/')
+LOG_FOLDER = os.path.join(BASE_FOLDER, 'log/')
 
 # Load dataset
 data = input_data.read_data_sets('data/mnist/', one_hot=True)
 
 
-def plot(samples, figId=None):
-    if figId is None:
-        fig = plt.figure(figsize=(4, 4))
-    else:
-        fig = plt.figure(figId, figsize=(4,4))
+#def_gen = simple_gen
+#def_dis = lambda x, name, **kwargs: simple_net(x, name, 1, **kwargs)
 
-    gs = gridspec.GridSpec(4, 4)
-    gs.update(wspace=0.05, hspace=0.05)
-
-    for i, sample in enumerate(samples):
-        ax = plt.subplot(gs[i])
-        plt.axis('off')
-        ax.set_xticklabels([])
-        ax.set_yticklabels([])
-        ax.set_aspect('equal')
-        plt.imshow(sample.reshape(28, 28), cmap='Greys_r')
-
-    return fig
-
-def sample_z(m, n):
-    return np.random.uniform(-1., 1., size=[m, n])
-
-
-def_gen = simple_gen
-def_dis = lambda x, name, **kwargs: simple_net(x, name, 1, **kwargs)
+def_gen = models[args.net][0]
+def_dis = lambda x, name, **kwargs: models[args.net][1](x, name, 1, **kwargs)
 
 
 # Instantiate network
@@ -53,18 +40,13 @@ x0 = tf.placeholder(tf.float32, shape=[None, 784])
 x1 = tf.reshape(x0, [-1,28,28,1])
 
 global_step = tf.Variable(0, trainable=False)
-# lr = tf.train.exponential_decay(0.001, global_step, 500 * 10, 0.96, staircase=True)   # *0.96 per 10 epochs
-lr = tf.constant(0.0001)
-'''
-Hexa's comments
-- Unlike classification problems, using a fixed/small LR leads to better results in GAN trainings
-  e.g.) 1e-6 for Cifar-10, 10e-4 for MNIST
-- # of training steps is also important. You should investigate the output images with Tensorboard
-'''
 increment_step = tf.assign_add(global_step, 1)
 
+lr = tf.constant(LR)
+
+
 # TODO: Refactoring
-### WGAN
+### define WGAN
 G = def_gen(z0, 'WGAN_G', bn=False)
 D_real = def_dis(x1, 'WGAN_D', bn=False)
 D_fake = def_dis(G, 'WGAN_D', bn=False, reuse=True)
@@ -81,9 +63,12 @@ G_solver = (tf.train.RMSPropOptimizer(learning_rate=lr))  \
 clip_D = [p.assign(tf.clip_by_value(p, -W_CLIP, W_CLIP))
             for p in get_trainable_params('WGAN_D')]
 
+tf.summary.scalar('WGAN_D(x)', tf.reduce_mean(D_real))
+tf.summary.scalar('WGAN_D(G)', tf.reduce_mean(D_fake))
 
-### GoGAN
-epsilon = 0.5   # Margin
+
+### define GoGAN
+epsilon = 1.0   # Margin
 l1 = 1.0        # Disc. loss
 l2 = 0.5        # Rank. loss
 
@@ -117,15 +102,33 @@ G2_solver = (tf.train.RMSPropOptimizer(learning_rate=lr)) \
 D2_solver = (tf.train.RMSPropOptimizer(learning_rate=lr)) \
             .minimize(D2_loss, var_list=get_trainable_params('GoGAN_D2'))
 
+tf.summary.scalar('GGAN_D1(x)', tf.reduce_mean(D1_real))
+tf.summary.scalar('GGAN_D1(G)', tf.reduce_mean(D1_fake))
+tf.summary.scalar('GGAN_D2(x)', tf.reduce_mean(D2_real))
+tf.summary.scalar('GGAN_D2(G)', tf.reduce_mean(D2_fake))
 
+# Copy operation from level1 to level2
 copy_G = ops_copy_vars(src_scope='GoGAN_G1', dst_scope='GoGAN_G2')
 copy_D = ops_copy_vars(src_scope='GoGAN_D1', dst_scope='GoGAN_D2')
 
 
+
+
+# Output images
+tf.summary.image('WGAN', G, max_outputs=3)
+tf.summary.image('GoGAN_1st', G1, max_outputs=3)
+tf.summary.image('GoGAN_2nd', G2, max_outputs=3)
+
+# Tensorboard
+summaries = tf.summary.merge_all()
+writer = tf.summary.FileWriter(LOG_FOLDER)
+
 # Session
-sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))     # XXX: Is this necessary?
-#sess = tf.Session()
+gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.5)
+sess = tf.Session(config=tf.ConfigProto(log_device_placement=True, gpu_options=gpu_options))
 sess.run(tf.global_variables_initializer())
+
+
 
 # Initial setup for visualization
 outputs = [G, G1, G2]
@@ -133,17 +136,18 @@ figs = [None] * len(outputs)
 fig_names = ['fig_WGAN_gen_{:04d}.png', 'fig_GGAN_1st_{:04d}.png', 'fig_GGAN_2nd_{:04d}.png']
 output_names = ['WGAN', 'GoGAN_1st', 'GoGAN_2nd']
 
-if not os.path.exists('out/'):
-    os.makedirs('out/')
+if not os.path.exists(OUT_FOLDER):
+    os.makedirs(OUT_FOLDER)
 
-print('{:>10}, {:>7}, {:>7}, {:>7}, {:>7}, {:>7}, {:>7}') \
-    .format('Iters', 'WGAN_D', 'WGAN_G', 'GGAN_D1', 'GGAN_G1', 'GGAN_D2', 'GGAN_G2')
+print ('Max iters: {}'.format(N_ITERS))
+
+print('{:>10}, {:>7}, {:>7}, {:>7}, {:>7}, {:>7}, {:>7}, {:>7}') \
+    .format('Iters', 'cur_LR', 'WGAN_D', 'WGAN_G', 'GGAN_D1', 'GGAN_G1', 'GGAN_D2', 'GGAN_G2')
 
 # 500 iterations = 1 epoch
-N_ITERS = 500 * 1000
-N_STAGE1 = 500 * 500
+N_ITERS_STAGE1 = int(N_ITERS / 2)
 for it in range(N_ITERS):
-    if it == N_STAGE1:
+    if it == N_ITERS_STAGE1:
         # Copy vars. and start phase-2
         sess.run(copy_G)
         sess.run(copy_D)
@@ -176,7 +180,7 @@ for it in range(N_ITERS):
     )
 
     # Train 2nd-stage GoGAN
-    if it >= N_STAGE1:
+    if it >= N_ITERS_STAGE1:
         for _ in range(5):
             batch_xs, batch_ys = data.train.next_batch(BATCH_SIZE)
 
@@ -203,10 +207,15 @@ for it in range(N_ITERS):
                 .format(it, cur_lr, loss_WGAN_D, loss_WGAN_G, loss_GGAN_D1, loss_GGAN_G1, loss_GGAN_D2, loss_GGAN_G2)
 
         rand_latent = sample_z(16, DIM_Z)
+
         if it % 1000 == 0:
             for i, output in enumerate(outputs):
                 samples = sess.run(output, feed_dict={z0: rand_latent})
                 figs[i] = plot(samples, i)
                 figs[i].canvas.draw()
 
-                plt.savefig('out/' + fig_names[i].format(it / 1000), bbox_inches='tight')
+                plt.savefig(OUT_FOLDER + fig_names[i].format(it / 1000), bbox_inches='tight')
+
+        # Tensorboard
+        cur_summary = sess.run(summaries, feed_dict={x0: batch_xs, z0: rand_latent})
+        writer.add_summary(cur_summary, it)

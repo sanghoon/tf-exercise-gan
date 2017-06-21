@@ -1,4 +1,5 @@
 import tensorflow as tf
+import numpy as np
 
 
 def get_trainable_params(scope_name):
@@ -32,8 +33,9 @@ def ops_copy_vars(src_scope, dst_scope, exclude_keys=['RMSProp']):
 
     return ops_list
 
+
 def conv2d(name, in_var, shape, stride=1, act=tf.nn.relu, bn=False,
-           is_training=True, reuse=False):
+           is_training=True, reuse=False, keep_summary=True):
     # ordering: N W H C
     with tf.variable_scope(name, reuse=reuse) as scope:
         w_shape = shape        # filterH, filterW, inChns, outChns
@@ -51,38 +53,55 @@ def conv2d(name, in_var, shape, stride=1, act=tf.nn.relu, bn=False,
             h = tf.contrib.layers.batch_norm(h, center=True, scale=True, is_training=is_training,
                                              scope='bn', reuse=reuse)
 
-        h = act(h, name='out')
+        out = act(h, name='out')
 
-    return h
+        # Tensorboard summary
+        if not reuse:
+            tf.summary.histogram('w', w)
+            tf.summary.histogram('b', b)
+            tf.summary.histogram('act', h)
+
+    return out
 
 
-def deconv2d(name, in_var, shape, stride=1, act=tf.nn.relu, bn=False,
-             is_training=True, reuse=False):
+def deconv2d(name, in_var, shape, filter, stride=1, act=tf.nn.relu, bn=False,
+             is_training=True, reuse=False, keep_summary=True):
     # ordering: N W H C
     with tf.variable_scope(name, reuse=reuse) as scope:
-        w_shape = shape         # filterH, filterW, outChns, inChns
-        b_shape = shape[2:3]    # outChns
+        w_shape = filter        # filterH, filterW, outChns, inChns
+        b_shape = filter[2:3]   # outChns
+
+        # XXX: Batchsize should be pre-defined to use deconv2d, and this is a work-around
+        batchsize = tf.shape(in_var)[0]
+        out_shape = [batchsize, shape[1], shape[2], shape[3]]
 
         # FIXME: Initialization of deconv
+        tmp_init_std = 1.0 / np.sqrt(w_shape[0] * w_shape[1] * w_shape[2])
         w = tf.get_variable('w', w_shape,
-                            initializer=tf.random_normal_initializer(stddev=0.1))
+                            initializer=tf.random_normal_initializer(stddev=tmp_init_std))
         b = tf.get_variable('b', b_shape,
                             initializer=tf.constant_initializer(0.1))
 
-        h = tf.nn.conv2d_transpose(in_var, w, strides=[1, stride, stride, 1], padding='SAME')
+        h = tf.nn.conv2d_transpose(in_var, w, out_shape, strides=[1, stride, stride, 1], padding='SAME')
         h = tf.nn.bias_add(h, b)
 
         if bn:
             h = tf.contrib.layers.batch_norm(h, center=True, scale=True, is_training=is_training,
                                              scope='bn', reuse=reuse)
 
-        h = act(h, name='out')
+        out = act(h, name='out')
 
-    return h
+        # Tensorboard summary
+        if not reuse:
+            tf.summary.histogram('w', w)
+            tf.summary.histogram('b', b)
+            tf.summary.histogram('act', h)
+
+    return out
 
 
 def fc(name, in_var, shape, act=tf.nn.relu, bn=False,
-       is_training=True, reuse=False):
+       is_training=True, reuse=False, keep_summary=True):
     with tf.variable_scope(name, reuse=reuse):
         w_shape = shape
         b_shape = shape[1:2]
@@ -98,7 +117,13 @@ def fc(name, in_var, shape, act=tf.nn.relu, bn=False,
             h = tf.contrib.layers.batch_norm(h, center=True, scale=True, is_training=is_training,
                                              scope='bn', reuse=reuse)
 
-        h = act(h, name='out')
+        out = act(h, name='out')
 
-    return h
+        # Tensorboard summary
+        if not reuse:
+            tf.summary.histogram('w', w)
+            tf.summary.histogram('b', b)
+            tf.summary.histogram('act', h)
+
+    return out
 

@@ -5,21 +5,23 @@ def xavier_init(size):
     _stddev = 1. / tf.sqrt(_in_dim / 2.)
     return tf.random_normal(shape=size, stddev=_stddev)
 
-DIM_Z = 32
+DIM_Z = 128
 DIM_X = 28 * 28
 
 # Simple generator
-def simple_gen(z, name='simple_gen', dim_h=128, **kwargs):
+def simple_gen(z, name='simple_gen', n_in=DIM_Z, dim_h=256, **kwargs):
     with tf.variable_scope(name):
-        l1 = fc('fc1', z, [DIM_Z, dim_h], **kwargs)
+        l1 = fc('fc1', z, [n_in, dim_h], **kwargs)
         l2 = fc('fc2', l1, [dim_h, dim_h], **kwargs)
+
+        kwargs['bn'] = False
         l3 = fc('fc3', l2, [dim_h, DIM_X], act=tf.nn.sigmoid, **kwargs)
-        l3 = tf.reshape(l3, [-1, 28, 28])
+        l3 = tf.reshape(l3, [-1, 28, 28, 1])
 
     return l3
 
 # Simple discriminator
-def simple_net(x, name='simple_net', n_out=10, dim_h=128, **kwargs):
+def simple_net(x, name='simple_net', n_out=10, dim_h=256, **kwargs):
     with tf.variable_scope(name):
         l0 = tf.reshape(x, [-1, DIM_X])
         l1 = fc('fc1', l0, [DIM_X, dim_h], **kwargs)
@@ -34,32 +36,79 @@ def simple_net(x, name='simple_net', n_out=10, dim_h=128, **kwargs):
     return l3
 
 
-def simple_cnn(x1, name='CNN', n_out=10, is_training=True, reuse=False, do_rate=0.5):
-    kwargs = {'is_training': is_training, 'reuse': reuse}
+# Simple ConvNet
+def simple_cnn(x, name='CNN', n_out=10, is_training=True, k=3,
+               last_act=tf.identity, **kwargs):
+    with tf.variable_scope(name):
+        # TODO: Check the shape of x0
+        h = x
+        h = conv2d('conv1_1', h, [k, k, 01, 16], stride=1, **kwargs)        # 28 x 28
+        h = conv2d('conv2_1', h, [k, k, 16, 32], stride=2, **kwargs)        # 14 x 14
+        h = conv2d('conv3_1', h, [k, k, 32, 64], stride=2, **kwargs)        # 7 x 7
 
+        kwargs['bn'] = False
+        h = fc('fc1',
+                tf.reshape(h, [-1, 7 * 7 * 64]), [7 * 7 * 64, n_out],
+                last_act, **kwargs)
+
+    return h
+
+def simple_cnn_gen(z, name='CNN_gen', n_in=DIM_Z, k=3,
+                   last_act=tf.sigmoid, **kwargs):
+    # XXX: Is there a way to define conv2d_transpose without specifying the batchsize?
+    with tf.variable_scope(name):
+        h = fc('fc1', z, [n_in, 7 * 7 * 64], act=tf.nn.elu, **kwargs)
+        h = tf.reshape(h, [-1, 7, 7, 64])                                                     # 7 x 7
+        h = deconv2d('deconv1', h, [-1, 14, 14, 32], [k, k, 32, 64], stride=2, act=tf.nn.elu, **kwargs)
+        h = deconv2d('deconv2', h, [-1, 28, 28, 16], [k, k, 16, 32], stride=2, act=tf.nn.elu, **kwargs)
+
+        kwargs['bn'] = False  # Last layer only
+        kwargs['act'] = tf.identity
+        h = deconv2d('deconv3', h, [-1, 28, 28, 01], [k, k, 01, 16], stride=1, **kwargs)
+        h = last_act(h, 'out')
+
+    return h
+
+
+# Deeper ConvNet
+def deeper_cnn(x, name='CNN', n_out=10, is_training=True, k=3,
+               last_act=tf.identity, **kwargs):
     with tf.variable_scope(name):
         # Check the shape of x0
-        l1 = conv2d('conv1_1', x1, [3, 3, 1, 16], **kwargs)                  # 28 x 28
-        l2 = conv2d('conv2_1', l1, [3, 3, 16, 32], stride=2, **kwargs)       # 14 x 14
-        l3 = conv2d('conv3_1', l2, [3, 3, 32, 64], stride=2, **kwargs)       # 7 x 7
-        l4 = fc('fc1',
-                tf.reshape(l3, [-1, 7 * 7 * 64]), [7 * 7 * 64, 256], **kwargs)
-        l4 = tf.layers.dropout(l4, rate=do_rate, training=is_training)
-        l5 = fc('fc2', l4, [256, n_out], tf.identity, bn=False, **kwargs)
+        h = conv2d('conv1_1', x, [k, k, 1, 16], stride=1, **kwargs)         # 28 x 28
+        h = conv2d('conv2_1', h, [k, k, 16, 32], stride=2, **kwargs)        # 14 x 14
+        h = conv2d('conv2_2', h, [k, k, 32, 32], stride=1, **kwargs)        # 14 x 14
+        h = conv2d('conv3_1', h, [k, k, 32, 64], stride=2, **kwargs)        # 7 x 7
+        h = conv2d('conv3_2', h, [k, k, 64, 64], stride=1, **kwargs)        # 7 x 7
 
-    return l5
+        kwargs['bn'] = False
+        h = fc('fc1',
+                tf.reshape(h, [-1, 7 * 7 * 64]), [7 * 7 * 64, n_out],
+                last_act, **kwargs)
 
-def simple_cnn_gen(z0, name='CNN_gen', is_training=True, reuse=False):
-    kwargs = {'is_training': is_training, 'reuse': reuse}
+    return h
 
+def deeper_cnn_gen(z, name='CNN_gen', n_in=DIM_Z, k=3,
+                   last_act=tf.sigmoid, **kwargs):
+    # XXX: Is there a way to define conv2d_transpose without specifying the batchsize?
     with tf.variable_scope(name):
-        l1 = fc('fc1', z0, [32, 256], **kwargs)
-        l1 = tf.reshape(l1, [-1, 7, 7, 64])                                         # 7 x 7
-        l2 = deconv2d('deconv1', l1, [5, 5, 32, 64], stride=2, **kwargs)            # 14 x 14
-        l3 = deconv2d('deconv2', l2, [5, 5, 16, 32], stride=2, **kwargs)            # 28 x 28
-        l4 = deconv2d('deconv3', l3, [5, 5, 1, 16], stride=2, bn=False, **kwargs)   # 28 x 28
-        l5 = tf.sigmoid(l4, 'out')
+        h = fc('fc1', z, [n_in, 7 * 7 * 64], **kwargs)
+        h = tf.reshape(h, [-1, 7, 7, 64])                                                     # 7 x 7
+        h = deconv2d('deconv1', h, [-1, 07, 07, 64], [k, k, 64, 64], stride=1, act=tf.nn.elu, **kwargs)
+        h = deconv2d('deconv2', h, [-1, 14, 14, 32], [k, k, 32, 64], stride=2, act=tf.nn.elu, **kwargs)
+        h = deconv2d('deconv3', h, [-1, 14, 14, 32], [k, k, 32, 32], stride=1, act=tf.nn.elu, **kwargs)
+        h = deconv2d('deconv4', h, [-1, 28, 28, 16], [k, k, 16, 32], stride=2, act=tf.nn.elu, **kwargs)
 
-    return l5
+        kwargs['bn'] = False  # Last layer only
+        kwargs['act'] = tf.identity
+        h = deconv2d('deconv5', h, [-1, 28, 28, 01], [k, k, 01, 16], stride=1, **kwargs)
+        h = last_act(h, 'out')
+
+    return h
 
 
+models = {
+    'simple_cnn': (simple_cnn_gen, simple_cnn),
+    'deeper_cnn': (deeper_cnn_gen, deeper_cnn),
+    'simple_fc': (simple_gen, simple_net),
+}
