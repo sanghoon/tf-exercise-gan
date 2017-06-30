@@ -1,11 +1,11 @@
 #!/usr/bin/env python
-import os
 from tensorflow.examples.tutorials.mnist import input_data
-from models import *
-from utils import *
+
 from common import *
+from models.models import *
+from utils import *
 
-
+# TODO: Refactoring
 args = parse_args(models.keys())
 
 print args

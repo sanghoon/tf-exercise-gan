@@ -34,6 +34,10 @@ def ops_copy_vars(src_scope, dst_scope, exclude_keys=['RMSProp']):
     return ops_list
 
 
+def leaky_relu(x, alpha=0.1):
+    return tf.maximum(tf.minimum(0.0, alpha * x), x)
+
+
 def conv2d(name, in_var, shape, stride=1, act=tf.nn.relu, bn=False,
            is_training=True, reuse=False, keep_summary=True):
     # ordering: N W H C
@@ -53,7 +57,8 @@ def conv2d(name, in_var, shape, stride=1, act=tf.nn.relu, bn=False,
             h = tf.contrib.layers.batch_norm(h, center=True, scale=True, is_training=is_training,
                                              scope='bn', reuse=reuse)
 
-        out = act(h, name='out')
+        #out = act(h, name='out')
+        out = act(h)
 
         # Tensorboard summary
         if not reuse:
@@ -89,7 +94,8 @@ def deconv2d(name, in_var, shape, filter, stride=1, act=tf.nn.relu, bn=False,
             h = tf.contrib.layers.batch_norm(h, center=True, scale=True, is_training=is_training,
                                              scope='bn', reuse=reuse)
 
-        out = act(h, name='out')
+        # out = act(h, name='out')
+        out = act(h)
 
         # Tensorboard summary
         if not reuse:
@@ -117,7 +123,8 @@ def fc(name, in_var, shape, act=tf.nn.relu, bn=False,
             h = tf.contrib.layers.batch_norm(h, center=True, scale=True, is_training=is_training,
                                              scope='bn', reuse=reuse)
 
-        out = act(h, name='out')
+        # out = act(h, name='out')
+        out = act(h)
 
         # Tensorboard summary
         if not reuse:

@@ -3,11 +3,8 @@ import os
 if 'DISPLAY' not in os.environ:
     import matplotlib
     matplotlib.use('Agg')       # Use a different backend
-import tensorflow as tf
-from utils import *
-import numpy as np
 from tensorflow.examples.tutorials.mnist import input_data
-from models import *
+from models.models import *
 
 
 # Load dataset
