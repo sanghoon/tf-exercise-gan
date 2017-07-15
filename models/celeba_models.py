@@ -17,8 +17,10 @@ class DCGAN_D(object):
         kwargs = dict(self.kwargs)  # Clone
 
         # Enable BN & Use leaky relu for all layers
-        kwargs['bn'] = True
-        kwargs['act'] = leaky_relu
+        if 'bn' not in kwargs.keys():
+            kwargs['bn'] = True
+        if 'act' not in kwargs.keys():
+            kwargs['act'] = leaky_relu
 
         with tf.variable_scope(name) as vs:
             if reuse:
@@ -73,8 +75,10 @@ class DCGAN_G(object):
         kwargs = dict(self.kwargs)      # Clone
 
         # Enable BN & Use ELU for all former layers
-        kwargs['bn'] = True
-        kwargs['act'] = tf.nn.elu
+        if 'bn' not in kwargs.keys():
+            kwargs['bn'] = True
+        if 'act' not in kwargs.keys():
+            kwargs['act'] = tf.nn.elu
 
         with tf.variable_scope(name) as vs:
             if reuse:

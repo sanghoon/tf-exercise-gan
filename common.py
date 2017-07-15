@@ -12,11 +12,9 @@ import io
 
 
 # Global configs
-DIM_Z = 128
-BATCH_SIZE = 64
-N_ITERS_PER_EPOCH = int(50000 / BATCH_SIZE)
-N_ITERS = N_ITERS_PER_EPOCH * 200
-
+PRNT_INTERVAL = 100
+EVAL_INTERVAL = 1000
+SAVE_INTERVAL = 5000
 
 DATASETS = ['mnist', 'celeba']
 
@@ -26,7 +24,43 @@ def sample_z(m, n):
     return np.random.uniform(-1., 1., size=[m, n])
 
 
+
+def create_dirs(name, g_name, d_name, hyperparams=None):
+    base_dir = 'out/{}_{}_{}/'.format(name, g_name, d_name) \
+                + '_'.join(['{}={}'.format(k,v) for (k,v) in hyperparams.iteritems()])
+
+    out_dir = os.path.join(base_dir, 'out/')
+    log_dir = os.path.join(base_dir, 'log/')
+
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+
+    return base_dir, out_dir, log_dir
+
+
+
+# Naive impl. with pre-defined numbers
+def check_dataset_type(shape):
+    assert(shape)
+
+    if len(shape) == 1:
+        return 'synthetic'
+    elif shape[2] == 1:
+        assert(shape[0] == 28 and shape[1] == 28)
+        return 'mnist'
+    elif shape[2] == 3:
+        return 'celeba'
+
+    return None
+
+
 def plot(samples, figId=None, retBytes=False, shape=None):
+    if check_dataset_type(shape) == 'synthetic':
+        assert(shape[0] == 2)
+        return scatter(samples, figId, retBytes)
+
     if figId is None:
         fig = plt.figure(figsize=(4, 4))
     else:
@@ -57,32 +91,38 @@ def plot(samples, figId=None, retBytes=False, shape=None):
     return fig
 
 
+def scatter(samples, figId=None, retBytes=False):
+    if figId is None:
+        fig = plt.figure()
+    else:
+        fig = plt.figure(figId)
+        fig.clear()
+
+    plt.scatter(samples[:,0], samples[:,1], alpha=0.1)
+
+    if retBytes:
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png')
+        buf.seek(0)
+        return fig, buf
+
+    return fig
+
+
+
 def parse_args(modelnames=[], additional_args=[]):
     parser = argparse.ArgumentParser()
 
-    if len(modelnames) > 0:
-        parser.add_argument('--net', choices=modelnames, default=None)
-
     parser.add_argument('--gpu', type=int, default=0)
     parser.add_argument('--batchsize', type=int, default=128)
-    parser.add_argument('--data', choices=DATASETS, default=DATASETS[0])
+    parser.add_argument('--datasets', choices=DATASETS, default=DATASETS[0])
     parser.add_argument('--lr', type=float, default=1e-5)
-
-    # All of these arguments can be ignored
-    parser.add_argument('--w_clip', type=float, default=0.1)
-    parser.add_argument('--bn', action='store_true', default=False)
-    parser.add_argument('--nobn', action='store_true', default=False)        # FIXME
-
     parser.add_argument('--tag', type=str, default='')
-    parser.add_argument('--kernel', type=int, default=5)                     # only for ConvNets
 
     for key, kwargs in additional_args:
         parser.add_argument(key, **kwargs)
 
     args = parser.parse_args()
-
-    if args.nobn == True:
-        assert(args.bn is not True)
 
     return args
 

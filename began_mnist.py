@@ -1,161 +1,167 @@
 #!/usr/bin/env python
-from tensorflow.examples.tutorials.mnist import input_data
+# Tensorflow impl. of BEGAN
+
 
 from common import *
-from models.models import *
-from utils import *
-
-# TODO: Refactoring
-args = parse_args(models.keys())
-
-print args
-
-if len(args.tag) == 0:
-    args.tag = 'began'
-
-if args.net is None:
-    args.net = 'simple_cnn'
-
-BASE_FOLDER = 'out_{}/{}_BN{}_LR{}_K{}/'.format(args.tag, args.net, int(args.bn), args.lr, args.kernel)
-OUT_FOLDER = os.path.join(BASE_FOLDER, 'out/')
-LOG_FOLDER = os.path.join(BASE_FOLDER, 'log/')
-
-assert('cnn' in args.net)
-
-def began_disc(x, name, dim_h=32, k=args.kernel, **kwargs):
-    h0 = models[args.net][1](x, name + '/enc', n_out=dim_h, last_act=tf.identity, k=k, **kwargs)
-    x_ = models[args.net][0](h0, name + '/dec', n_in=dim_h, last_act=tf.sigmoid, k=k, **kwargs)
-
-    out = tf.reduce_mean(tf.reduce_sum((x - x_) ** 2, 1))
-
-    return out
-
-def_gen = lambda x, name, **kwargs: models[args.net][0](x, name, k=args.kernel, **kwargs)
-def_dis = lambda x, name, **kwargs: began_disc(x, name, **kwargs)
+from datasets import data_celeba, data_mnist
+from models.celeba_models import *
+from models.mnist_models import *
 
 
+def train_began(data, g_net, d_enc, d_dec, name='BEGAN',
+                 dim_z=128, n_iters=1e5, lr=1e-4, batch_size=128,
+                 l_k = 0.001, g_k = 0.5,
+                 sampler=sample_z, eval_funcs=[]):
 
-LR = args.lr
+    ### 0. Common preparation
+    hyperparams = {'LR': lr}
+    base_dir, out_dir, log_dir = create_dirs(name, g_net.name, d_enc.name, hyperparams)
 
-z0 = tf.placeholder(tf.float32, shape=[None, DIM_Z])
-x0 = tf.placeholder(tf.float32, shape=[None, 784])
-x1 = tf.reshape(x0, [-1,28,28,1])
-k = tf.Variable(0.0, trainable=False)
-l_k = 0.001
-g_k = 0.5
+    global_step = tf.Variable(0, trainable=False)
+    increment_step = tf.assign_add(global_step, 1)
+    lr = tf.constant(lr)
 
-global_step = tf.Variable(0, trainable=False)
-increment_step = tf.assign_add(global_step, 1)
+    ### 1. Define network structure
+    x_shape = data.train.images[0].shape
+    z0 = tf.placeholder(tf.float32, shape=[None, dim_z])        # Latent var.
+    x0 = tf.placeholder(tf.float32, shape=(None,) + x_shape)    # Generated images
 
-lr = tf.constant(LR)
+    # BEGAN-specific vars.
+    k = tf.Variable(0.0, trainable=False)
 
+    def began_disc(x, name, **kwargs):
+        h0 = d_enc(x, name + '_ENC', **kwargs)
+        x_ = d_dec(h0, name + '_DEC', **kwargs)
 
+        out = tf.reduce_mean(tf.reduce_sum((x - x_) ** 2, 1))
 
-### BEGAN
-G = def_gen(z0, 'BEGAN_G', bn=args.bn)
-D_real = def_dis(x1, 'BEGAN_D', bn=args.bn)
-D_fake = def_dis(G, 'BEGAN_D', bn=args.bn, reuse=True)
+        return out
 
-# Loss functions
-D_loss = tf.reduce_mean(D_real - k * D_fake)
-G_loss = tf.reduce_mean(D_fake)
+    G = g_net(z0, 'BEGAN_G')
+    D_real = began_disc(x0, 'BEGAN_D')
+    D_fake = began_disc(G, 'BEGAN_D', reuse=True)
 
-D_solver = (tf.train.AdamOptimizer(learning_rate=lr, beta1=0.5))  \
-            .minimize(D_loss, var_list=get_trainable_params('BEGAN_D'))
-G_solver = (tf.train.AdamOptimizer(learning_rate=lr, beta1=0.5))  \
-            .minimize(G_loss, var_list=get_trainable_params('BEGAN_G'))
+    # Loss functions
+    D_loss = tf.reduce_mean(D_real - k * D_fake)
+    G_loss = tf.reduce_mean(D_fake)
 
-tf.summary.scalar('BEGAN_D(x)', tf.reduce_mean(D_real))
-tf.summary.scalar('BEGAN_D(G)', tf.reduce_mean(D_fake))
-tf.summary.scalar('k', k)
+    D_solver = (tf.train.AdamOptimizer(learning_rate=lr, beta1=0.5))  \
+                .minimize(D_loss, var_list=get_trainable_params('BEGAN_D'))
+    G_solver = (tf.train.AdamOptimizer(learning_rate=lr, beta1=0.5))  \
+                .minimize(G_loss, var_list=get_trainable_params('BEGAN_G'))
 
+    # Convergence metric
+    M = D_real + tf.abs(g_k * D_real - D_fake)
 
-# Convergence metric
-M = D_real + tf.abs(g_k * D_real - D_fake)
-
-tf.summary.scalar('M', M)
-
-
-# update k
-update_k = k.assign(k + l_k * (g_k * D_real - D_fake))
-
-
-
-# Output images
-tf.summary.image('BEGAN', G, max_outputs=3)
-
-# Tensorboard
-summaries = tf.summary.merge_all()
+    # update k
+    update_k = k.assign(k + l_k * (g_k * D_real - D_fake))
 
 
-# Session
-gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.5)
-sess = tf.Session(config=tf.ConfigProto(log_device_placement=True, gpu_options=gpu_options))
-sess.run(tf.global_variables_initializer())
+    #### 2. Operations for log/state back-up
+    tf.summary.scalar('BEGAN_D(x)', tf.reduce_mean(D_real))
+    tf.summary.scalar('BEGAN_D(G)', tf.reduce_mean(D_fake))
+    tf.summary.scalar('BEGAN_D_loss', tf.reduce_mean(D_loss))
+    tf.summary.scalar('BEGAN_G_loss', tf.reduce_mean(G_loss))
+    tf.summary.scalar('k', k)
+    tf.summary.scalar('M', M)
 
-writer = tf.summary.FileWriter(LOG_FOLDER, sess.graph)
+    if check_dataset_type(x_shape) != 'synthetic':
+        tf.summary.image('BEGAN', G, max_outputs=4)
 
-# Initial setup for visualization
-outputs = [G]
-figs = [None] * len(outputs)
-fig_names = ['fig_BEGAN_gen_{:04d}.png']
-output_names = ['BEGAN']
+    summaries = tf.summary.merge_all()
 
-if not os.path.exists(OUT_FOLDER):
-    os.makedirs(OUT_FOLDER)
+    saver = tf.train.Saver(get_trainable_params('BEGAN_D') + get_trainable_params('BEGAN_G'))
 
-
-
-saver = tf.train.Saver(get_trainable_params('BEGAN_D') + get_trainable_params('BEGAN_G'))
-
-
-# Load dataset
-data = input_data.read_data_sets('data/mnist/', one_hot=True)
-
-print('{:>10}, {:>7}, {:>7}, {:>7}') \
-    .format('Iters', 'cur_LR', 'BEGAN_D', 'BEGAN_G')
-
-# 500 iterations = 1 epoch
-for it in range(N_ITERS):
-    # Train DCGAN
-    batch_xs, batch_ys = data.train.next_batch(BATCH_SIZE)
-
-    _, loss_D = sess.run(
-            [D_solver, D_loss],
-            feed_dict={x0: batch_xs, z0: sample_z(BATCH_SIZE, DIM_Z)}
-        )
-
-    _, loss_G = sess.run(
-        [G_solver, G_loss],
-        feed_dict={z0: sample_z(BATCH_SIZE, DIM_Z)}
-    )
-
-    cur_k = sess.run(update_k, feed_dict={x0: batch_xs, z0: sample_z(BATCH_SIZE, DIM_Z)})
-
-    # Increment steps
-    _, cur_lr = sess.run([increment_step, lr])
+    # Initial setup for visualization
+    outputs = [G]
+    figs = [None] * len(outputs)
+    fig_names = ['fig_BEGAN_gen_{:04d}.png']
 
     plt.ion()
-    if it % 100 == 0:
-        print('{:10d}, {:1.4f}, {: 1.4f}, {: 1.4f}, {: 1.4f}') \
-                .format(it, cur_lr, loss_D, loss_G, cur_k)
 
-        rand_latent = sample_z(16, DIM_Z)
+    ### 3. Run a session
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.95)
+    sess = tf.Session(config=tf.ConfigProto(log_device_placement=True, allow_soft_placement=False, gpu_options=gpu_options))
+    sess.run(tf.global_variables_initializer())
 
-        # TODO: convergence_measure
+    writer = tf.summary.FileWriter(log_dir, sess.graph)
 
-        if it % 1000 == 0:
+    print('{:>10}, {:>7}, {:>7}, {:>7}') \
+        .format('Iters', 'cur_LR', 'BEGAN_D', 'BEGAN_G')
+
+
+    for it in range(int(n_iters)):
+        batch_xs, batch_ys = data.train.next_batch(batch_size)
+
+        _, loss_D = sess.run(
+            [D_solver, D_loss],
+            feed_dict={x0: batch_xs, z0: sampler(batch_size, dim_z)}
+        )
+
+        _, loss_G = sess.run(
+            [G_solver, G_loss],
+            feed_dict={z0: sampler(batch_size, dim_z)}
+        )
+
+        cur_k = sess.run(update_k, feed_dict={x0: batch_xs, z0: sampler(batch_size, dim_z)})
+
+        _, cur_lr = sess.run([increment_step, lr])
+
+        if it % PRNT_INTERVAL == 0:
+            print('{:10d}, {:1.4f}, {: 1.4f}, {: 1.4f}, {: 1.4f}') \
+                    .format(it, cur_lr, loss_D, loss_G, cur_k)
+
+            # Tensorboard
+            cur_summary = sess.run(summaries, feed_dict={x0: batch_xs, z0: sampler(batch_size, dim_z)})
+            writer.add_summary(cur_summary, it)
+
+        if it % EVAL_INTERVAL == 0:
+            img_generator = lambda n: sess.run(output, feed_dict={z0: sampler(n, dim_z)})
+
             for i, output in enumerate(outputs):
-                samples = sess.run(output, feed_dict={z0: rand_latent})
-                figs[i] = plot(samples, i)
+                figs[i] = data.plot(img_generator, fig_id=i)
                 figs[i].canvas.draw()
 
-                plt.savefig(OUT_FOLDER + fig_names[i].format(it / 1000), bbox_inches='tight')
+                plt.savefig(out_dir + fig_names[i].format(it / 1000), bbox_inches='tight')
 
-        # Tensorboard
-        cur_summary = sess.run(summaries, feed_dict={x0: batch_xs, z0: rand_latent})
-        writer.add_summary(cur_summary, it)
+            # Run evaluation functions
+            for func in eval_funcs:
+                func(it, img_generator)
 
-        if it % 10000 == 0:
-            saver.save(sess, OUT_FOLDER + 'began', it)
+        if it % SAVE_INTERVAL == 0:
+            saver.save(sess, out_dir + 'began', it)
 
+
+if __name__ == '__main__':
+    args = parse_args(additional_args=[])
+    print args
+
+    if args.gpu:
+        set_gpu(args.gpu)
+
+    if args.datasets == 'mnist':
+        dim_z = 64
+        dim_h = 16
+
+        data = data_mnist.MnistWrapper('datasets/mnist/')
+
+        # BEGAN doesn't seem to work well with BN
+        g_net = SimpleGEN(dim_z, last_act=tf.sigmoid, bn=False)
+        d_enc = SimpleCNN(n_out=dim_h, last_act=tf.identity, bn=False)
+        d_dec = SimpleGEN(n_in=dim_h, last_act=tf.sigmoid, bn=False)
+
+        train_began(data, g_net, d_enc, d_dec, name='BEGAN_mnist', dim_z=dim_z,  batch_size=args.batchsize, lr=args.lr)
+
+
+    elif args.datasets == 'celeba':
+        dim_z = 128
+        dim_h = 64
+
+        data = data_celeba.CelebA('datasets/img_align_celeba')
+
+        # BEGAN doesn't seem to work well with BN
+        g_net = DCGAN_G(dim_z, last_act=tf.tanh, bn=False)
+        d_enc = DCGAN_D(n_out=dim_h, last_act=tf.identity, bn=False)
+        d_dec = DCGAN_G(n_in=dim_h, last_act=tf.tanh, bn=False)
+
+        train_began(data, g_net, d_enc, d_dec, name='BEGAN_celeba', dim_z=dim_z, batch_size=args.batchsize, lr=args.lr)

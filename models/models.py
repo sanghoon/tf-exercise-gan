@@ -1,5 +1,7 @@
 from utils import *
 
+# Obsolete
+
 def xavier_init(size):
     _in_dim = size[0]
     _stddev = 1. / tf.sqrt(_in_dim / 2.)

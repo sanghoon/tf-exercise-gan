@@ -8,7 +8,7 @@ from models.models import *
 
 
 # Load dataset
-data = input_data.read_data_sets('data/mnist/', one_hot=True)
+data = input_data.read_data_sets('datasets/mnist/', one_hot=True)
 
 trainimg = data.train.images
 testimg = data.test.images

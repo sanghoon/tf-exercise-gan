@@ -1,224 +1,201 @@
 #!/usr/bin/env python
-
-# Tensorflow Implementation of WGAN and GoGAN
-
-
-from tensorflow.examples.tutorials.mnist import input_data
+# Tensorflow impl. of GoGAN
 
 from common import *
-from models.models import *
-from utils import *
-
-# TODO: Refactoring
-args = parse_args(models.keys())
-if args.net is None:
-    args.net = models.keys()[0]
-
-print args
-
-W_CLIP = args.w_clip        # 0.01
-LR = args.lr
-
-if len(args.tag) == 0:
-    args.tag = 'gogan'
-
-BASE_FOLDER = 'out_{}/{}_WC{}_LR{}/'.format(args.tag, args.net, W_CLIP, args.lr)
-OUT_FOLDER = os.path.join(BASE_FOLDER, 'out/')
-LOG_FOLDER = os.path.join(BASE_FOLDER, 'log/')
-
-# Load dataset
-data = input_data.read_data_sets('data/mnist/', one_hot=True)
+from datasets import data_celeba, data_mnist
+from models.celeba_models import *
+from models.mnist_models import *
 
 
-#def_gen = simple_gen
-#def_dis = lambda x, name, **kwargs: simple_net(x, name, 1, **kwargs)
+def train_gogan(data, g_net, d_net, name='GoGAN',
+                 dim_z=128, n_iters=1e5, lr=1e-4, batch_size=128,
+                 w_clip=0.1,
+                 sampler=sample_z, eval_funcs=[]):
 
-def_gen = models[args.net][0]
-def_dis = lambda x, name, **kwargs: models[args.net][1](x, name, 1, **kwargs)
+    ### 0. Common preparation
+    hyperparams = {'LR': lr}
+    base_dir, out_dir, log_dir = create_dirs(name, g_net.name, d_net.name, hyperparams)
 
+    global_step = tf.Variable(0, trainable=False)
+    increment_step = tf.assign_add(global_step, 1)
+    lr = tf.constant(lr)
 
-# Instantiate network
-z0 = tf.placeholder(tf.float32, shape=[None, DIM_Z])
-x0 = tf.placeholder(tf.float32, shape=[None, 784])
-x1 = tf.reshape(x0, [-1,28,28,1])
+    ### 1. Define network structure
+    x_shape = data.train.images[0].shape
+    z0 = tf.placeholder(tf.float32, shape=[None, dim_z])        # Latent var.
+    x0 = tf.placeholder(tf.float32, shape=(None,) + x_shape)    # Generated images
 
-global_step = tf.Variable(0, trainable=False)
-increment_step = tf.assign_add(global_step, 1)
+    epsilon = 1.0   # Margin
+    l1 = 1.0        # Disc. loss
+    l2 = 0.5        # Rank. loss
 
-lr = tf.constant(LR)
+    # 1st stage
+    G1 = g_net(z0, 'GoGAN_G1')
+    D1_real = d_net(x0, 'GoGAN_D1')
+    D1_fake = d_net(G1, 'GoGAN_D1', reuse=True)
 
+    D1_loss = tf.reduce_mean(tf.nn.relu(D1_fake + epsilon - D1_real))
+    G1_loss = -tf.reduce_mean(D1_fake)
 
-# TODO: Refactoring
-### define WGAN
-G = def_gen(z0, 'WGAN_G', bn=False)
-D_real = def_dis(x1, 'WGAN_D', bn=False)
-D_fake = def_dis(G, 'WGAN_D', bn=False, reuse=True)
+    clip_D1 = [p.assign(tf.clip_by_value(p, -w_clip, w_clip))
+                for p in get_trainable_params('GoGAN_D1')]
 
-# Loss functions
-D_loss = tf.reduce_mean(D_fake) - tf.reduce_mean(D_real)
-G_loss = -tf.reduce_mean(D_fake)
+    G1_solver = (tf.train.RMSPropOptimizer(learning_rate=lr)) \
+                .minimize(G1_loss, var_list=get_trainable_params('GoGAN_G1'))
+    D1_solver = (tf.train.RMSPropOptimizer(learning_rate=lr)) \
+                .minimize(D1_loss, var_list=get_trainable_params('GoGAN_D1'))
 
-D_solver = (tf.train.RMSPropOptimizer(learning_rate=lr))  \
-            .minimize(D_loss, var_list=get_trainable_params('WGAN_D'))
-G_solver = (tf.train.RMSPropOptimizer(learning_rate=lr))  \
-            .minimize(G_loss, var_list=get_trainable_params('WGAN_G'))
+    # 2nd stage
+    G2 = g_net(z0, 'GoGAN_G2')
+    D2_real = d_net(x0, 'GoGAN_D2')
+    D2_fake = d_net(G2, 'GoGAN_D2', reuse=True)
 
-clip_D = [p.assign(tf.clip_by_value(p, -W_CLIP, W_CLIP))
-            for p in get_trainable_params('WGAN_D')]
+    D2_loss = tf.reduce_mean(tf.nn.relu(D2_fake + epsilon - D2_real)) * l1 \
+            + tf.reduce_mean(tf.nn.relu(D1_fake + 2 * epsilon - D2_real)) * l2
+    G2_loss = -tf.reduce_mean(D2_fake)
 
-tf.summary.scalar('WGAN_D(x)', tf.reduce_mean(D_real))
-tf.summary.scalar('WGAN_D(G)', tf.reduce_mean(D_fake))
+    clip_D2 = [p.assign(tf.clip_by_value(p, -w_clip, w_clip))
+                for p in get_trainable_params('GoGAN_D2')]
 
+    G2_solver = (tf.train.RMSPropOptimizer(learning_rate=lr)) \
+                .minimize(G2_loss, var_list=get_trainable_params('GoGAN_G2'))
+    D2_solver = (tf.train.RMSPropOptimizer(learning_rate=lr)) \
+                .minimize(D2_loss, var_list=get_trainable_params('GoGAN_D2'))
 
-### define GoGAN
-epsilon = 1.0   # Margin
-l1 = 1.0        # Disc. loss
-l2 = 0.5        # Rank. loss
-
-G1 = def_gen(z0, 'GoGAN_G1', bn=False)
-D1_real = def_dis(x1, 'GoGAN_D1', bn=False)
-D1_fake = def_dis(G1, 'GoGAN_D1', bn=False, reuse=True)
-
-D1_loss = tf.reduce_mean(tf.nn.relu(D1_fake + epsilon - D1_real))
-G1_loss = -tf.reduce_mean(D1_fake)
-
-clip_D1 = [p.assign(tf.clip_by_value(p, -W_CLIP, W_CLIP))
-            for p in get_trainable_params('GoGAN_D1')]
-
-G2 = def_gen(z0, 'GoGAN_G2', bn=False)
-D2_real = def_dis(x1, 'GoGAN_D2', bn=False)
-D2_fake = def_dis(G2, 'GoGAN_D2', bn=False, reuse=True)
-
-D2_loss = tf.reduce_mean(tf.nn.relu(D2_fake + epsilon - D2_real)) * l1 \
-        + tf.reduce_mean(tf.nn.relu(D1_fake + 2 * epsilon - D2_real)) * l2
-G2_loss = -tf.reduce_mean(D2_fake)
-
-clip_D2 = [p.assign(tf.clip_by_value(p, -W_CLIP, W_CLIP))
-            for p in get_trainable_params('GoGAN_D2')]
-
-G1_solver = (tf.train.RMSPropOptimizer(learning_rate=lr)) \
-            .minimize(G1_loss, var_list=get_trainable_params('GoGAN_G1'))
-D1_solver = (tf.train.RMSPropOptimizer(learning_rate=lr)) \
-            .minimize(D1_loss, var_list=get_trainable_params('GoGAN_D1'))
-G2_solver = (tf.train.RMSPropOptimizer(learning_rate=lr)) \
-            .minimize(G2_loss, var_list=get_trainable_params('GoGAN_G2'))
-D2_solver = (tf.train.RMSPropOptimizer(learning_rate=lr)) \
-            .minimize(D2_loss, var_list=get_trainable_params('GoGAN_D2'))
-
-tf.summary.scalar('GGAN_D1(x)', tf.reduce_mean(D1_real))
-tf.summary.scalar('GGAN_D1(G)', tf.reduce_mean(D1_fake))
-tf.summary.scalar('GGAN_D2(x)', tf.reduce_mean(D2_real))
-tf.summary.scalar('GGAN_D2(G)', tf.reduce_mean(D2_fake))
-
-# Copy operation from level1 to level2
-copy_G = ops_copy_vars(src_scope='GoGAN_G1', dst_scope='GoGAN_G2')
-copy_D = ops_copy_vars(src_scope='GoGAN_D1', dst_scope='GoGAN_D2')
+    # Copy operation from level1 to level2
+    copy_G = ops_copy_vars(src_scope='GoGAN_G1', dst_scope='GoGAN_G2')
+    copy_D = ops_copy_vars(src_scope='GoGAN_D1', dst_scope='GoGAN_D2')
 
 
+    #### 2. Operations for log/state back-up
+    tf.summary.scalar('GGAN_D1(x)', tf.reduce_mean(D1_real))
+    tf.summary.scalar('GGAN_D1(G)', tf.reduce_mean(D1_fake))
+    tf.summary.scalar('GGAN_D2(x)', tf.reduce_mean(D2_real))
+    tf.summary.scalar('GGAN_D2(G)', tf.reduce_mean(D2_fake))
 
+    # Output images
+    if check_dataset_type(x_shape) != 'synthetic':
+        tf.summary.image('GoGAN_1st', G1, max_outputs=3)
+        tf.summary.image('GoGAN_2nd', G2, max_outputs=3)
 
-# Output images
-tf.summary.image('WGAN', G, max_outputs=3)
-tf.summary.image('GoGAN_1st', G1, max_outputs=3)
-tf.summary.image('GoGAN_2nd', G2, max_outputs=3)
+    summaries = tf.summary.merge_all()
 
-# Tensorboard
-summaries = tf.summary.merge_all()
-writer = tf.summary.FileWriter(LOG_FOLDER)
+    saver = tf.train.Saver(get_trainable_params('WGAN') + get_trainable_params('GoGAN'))
 
-# Session
-gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.5)
-sess = tf.Session(config=tf.ConfigProto(log_device_placement=True, gpu_options=gpu_options))
-sess.run(tf.global_variables_initializer())
-
-
-
-# Initial setup for visualization
-outputs = [G, G1, G2]
-figs = [None] * len(outputs)
-fig_names = ['fig_WGAN_gen_{:04d}.png', 'fig_GGAN_1st_{:04d}.png', 'fig_GGAN_2nd_{:04d}.png']
-output_names = ['WGAN', 'GoGAN_1st', 'GoGAN_2nd']
-
-if not os.path.exists(OUT_FOLDER):
-    os.makedirs(OUT_FOLDER)
-
-print ('Max iters: {}'.format(N_ITERS))
-
-print('{:>10}, {:>7}, {:>7}, {:>7}, {:>7}, {:>7}, {:>7}, {:>7}') \
-    .format('Iters', 'cur_LR', 'WGAN_D', 'WGAN_G', 'GGAN_D1', 'GGAN_G1', 'GGAN_D2', 'GGAN_G2')
-
-# 500 iterations = 1 epoch
-N_ITERS_STAGE1 = int(N_ITERS / 2)
-for it in range(N_ITERS):
-    if it == N_ITERS_STAGE1:
-        # Copy vars. and start phase-2
-        sess.run(copy_G)
-        sess.run(copy_D)
-        pass
-
-    # Train WGAN
-    for _ in range(5):
-        batch_xs, batch_ys = data.train.next_batch(BATCH_SIZE)
-
-        _, loss_WGAN_D, _ = sess.run(
-            [D_solver, D_loss, clip_D],
-            feed_dict={x0: batch_xs, z0: sample_z(BATCH_SIZE, DIM_Z)}
-        )
-
-    _, loss_WGAN_G = sess.run(
-        [G_solver, G_loss],
-        feed_dict={z0: sample_z(BATCH_SIZE, DIM_Z)}
-    )
-
-    # Train 1st-stage GoGAN
-    for _ in range(5):
-        _, loss_GGAN_D1, _ = sess.run(
-            [D1_solver, D1_loss, clip_D1],
-            feed_dict={x0: batch_xs, z0: sample_z(BATCH_SIZE, DIM_Z)}
-        )
-
-    _, loss_GGAN_G1 = sess.run(
-        [G1_solver, G1_loss],
-        feed_dict={z0: sample_z(BATCH_SIZE, DIM_Z)}
-    )
-
-    # Train 2nd-stage GoGAN
-    if it >= N_ITERS_STAGE1:
-        for _ in range(5):
-            batch_xs, batch_ys = data.train.next_batch(BATCH_SIZE)
-
-            _, loss_GGAN_D2, _ = sess.run(
-                [D2_solver, D2_loss, clip_D2],
-                feed_dict={x0: batch_xs, z0: sample_z(BATCH_SIZE, DIM_Z)}
-            )
-
-        _, loss_GGAN_G2 = sess.run(
-            [G2_solver, G2_loss],
-            feed_dict={z0: sample_z(BATCH_SIZE, DIM_Z)}
-        )
-    else:
-        loss_GGAN_D2 = 0
-        loss_GGAN_G2 = 0
-
-
-    # Increment steps
-    _, cur_lr = sess.run([increment_step, lr])
+    # Initial setup for visualization
+    outputs = [G1, G2]
+    figs = [None] * len(outputs)
+    fig_names = ['fig_GGAN_1st_{:04d}.png', 'fig_GGAN_2nd_{:04d}.png']
 
     plt.ion()
-    if it % 100 == 0:
-        print('{:10d}, {:1.4f}, {: 1.4f}, {: 1.4f}, {: 1.4f}, {: 1.4f}, {: 1.4f}, {: 1.4f}') \
-                .format(it, cur_lr, loss_WGAN_D, loss_WGAN_G, loss_GGAN_D1, loss_GGAN_G1, loss_GGAN_D2, loss_GGAN_G2)
 
-        rand_latent = sample_z(16, DIM_Z)
+    ### 3. Run a session
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.95)
+    sess = tf.Session(config=tf.ConfigProto(log_device_placement=True, allow_soft_placement=False, gpu_options=gpu_options))
+    sess.run(tf.global_variables_initializer())
 
-        if it % 1000 == 0:
+    writer = tf.summary.FileWriter(log_dir, sess.graph)
+
+    print('{:>10}, {:>7}, {:>7}, {:>7}, {:>7}, {:>7}') \
+        .format('Iters', 'cur_LR', 'GGAN_D1', 'GGAN_G1', 'GGAN_D2', 'GGAN_G2')
+
+    n_iters_before_stage2 = n_iters // 2
+    for it in range(int(n_iters)):
+        if it == n_iters_before_stage2:
+            # Copy vars. and start phase-2
+            sess.run(copy_G)
+            sess.run(copy_D)
+            pass
+
+        # Train 1st-stage GoGAN
+        for _ in range(5):
+            batch_xs, batch_ys = data.train.next_batch(batch_size)
+
+            _, loss_GGAN_D1, _ = sess.run(
+                [D1_solver, D1_loss, clip_D1],
+                feed_dict={x0: batch_xs, z0: sampler(batch_size, dim_z)}
+            )
+
+        _, loss_GGAN_G1 = sess.run(
+            [G1_solver, G1_loss],
+            feed_dict={z0: sampler(batch_size, dim_z)}
+        )
+
+        # Train 2nd-stage GoGAN
+        if it >= n_iters_before_stage2:
+            for _ in range(5):
+                batch_xs, batch_ys = data.train.next_batch(batch_size)
+
+                _, loss_GGAN_D2, _ = sess.run(
+                    [D2_solver, D2_loss, clip_D2],
+                    feed_dict={x0: batch_xs, z0: sampler(batch_size, dim_z)}
+                )
+
+            _, loss_GGAN_G2 = sess.run(
+                [G2_solver, G2_loss],
+                feed_dict={z0: sampler(batch_size, dim_z)}
+            )
+        else:
+            loss_GGAN_D2 = 0
+            loss_GGAN_G2 = 0
+
+
+        _, cur_lr = sess.run([increment_step, lr])
+
+        if it % PRNT_INTERVAL == 0:
+            print('{:10d}, {: 1.4f}, {: 1.4f}, {: 1.4f}, {: 1.4f}, {: 1.4f}') \
+                    .format(it, cur_lr, loss_GGAN_D1, loss_GGAN_G1, loss_GGAN_D2, loss_GGAN_G2)
+
+            # Tensorboard
+            cur_summary = sess.run(summaries, feed_dict={x0: batch_xs, z0: sampler(batch_size, dim_z)})
+            writer.add_summary(cur_summary, it)
+
+        if it % EVAL_INTERVAL == 0:
+            img_generator = lambda n: sess.run(output, feed_dict={z0: sampler(n, dim_z)})
+
             for i, output in enumerate(outputs):
-                samples = sess.run(output, feed_dict={z0: rand_latent})
-                figs[i] = plot(samples, i)
+                figs[i] = data.plot(img_generator, fig_id=i)
                 figs[i].canvas.draw()
 
-                plt.savefig(OUT_FOLDER + fig_names[i].format(it / 1000), bbox_inches='tight')
+                plt.savefig(out_dir + fig_names[i].format(it / 1000), bbox_inches='tight')
 
-        # Tensorboard
-        cur_summary = sess.run(summaries, feed_dict={x0: batch_xs, z0: rand_latent})
-        writer.add_summary(cur_summary, it)
+            # Run evaluation functions
+            for func in eval_funcs:
+                func(it, img_generator)
+
+        if it % SAVE_INTERVAL == 0:
+            saver.save(sess, out_dir + 'gogan', it)
+
+
+if __name__ == '__main__':
+    args = parse_args(additional_args=[
+        ('--w_clip', {'type': float, 'default': 0.1}),
+    ])
+    print args
+
+    if args.gpu:
+        set_gpu(args.gpu)
+
+    if args.datasets == 'mnist':
+        dim_z = 64
+
+        data = data_mnist.MnistWrapper('datasets/mnist/')
+
+        g_net = SimpleGEN(dim_z, last_act=tf.sigmoid)
+        d_net = SimpleCNN(n_out=1, last_act=tf.identity)
+
+        train_gogan(data, g_net, d_net, name='GoGAN_mnist', dim_z=dim_z,  batch_size=args.batchsize, lr=args.lr,
+                    w_clip=args.w_clip)
+
+
+    elif args.datasets == 'celeba':
+        dim_z = 128
+        dim_h = 64
+
+        data = data_celeba.CelebA('datasets/img_align_celeba')
+
+        g_net = DCGAN_G(dim_z, last_act=tf.tanh)
+        d_net = DCGAN_D(n_out=1, last_act=tf.identity)
+
+        train_gogan(data, g_net, d_net, name='GoGAN_celeba', dim_z=dim_z, batch_size=args.batchsize, lr=args.lr,
+                    w_clip=args.w_clip)

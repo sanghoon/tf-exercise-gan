@@ -3,6 +3,7 @@ import os.path
 import glob
 import cv2
 import random
+from common import plot
 
 
 class ImgDataset:
@@ -36,6 +37,7 @@ class ImgDataset:
 
         # rescale (range: -1.0~1.0)
         im = (im / 127.5 - 1.)
+        # TODO: Compute real mean, scale factor
 
         return im
 
@@ -72,10 +74,18 @@ class ImgDataset:
 class CelebA:
     def __init__(self, dataDir):
         self.train = ImgDataset(dataDir, i_from=0, i_to=150000, shuffle=True, crop=108, resize=64)
+        self.validation = ImgDataset(dataDir, i_from=150000, i_to=None, crop=108, resize=64)
         self.test = ImgDataset(dataDir, i_from=150000, i_to=None, crop=108, resize=64)
 
         # TODO: Follow the original set's train/val/test pratition
         # TODO: Provide label info.
+
+    # TODO: refactoring
+    def plot(self, img_generator, fig_id=None):
+        samples = img_generator(16)
+        fig = plot(samples, fig_id, shape=self.train.images[0].shape)
+
+        return fig
 
 
 if __name__ == '__main__':
