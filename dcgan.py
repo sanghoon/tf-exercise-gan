@@ -79,11 +79,10 @@ def train_dcgan(data, g_net, d_net, name='DCGAN',
             feed_dict={x0: batch_xs, z0: sampler(batch_size, dim_z)}
         )
 
-        for i in range(5):
-            _, loss_G = sess.run(
-                [G_solver, G_loss],
-                feed_dict={z0: sampler(batch_size, dim_z)}
-            )
+        _, loss_G = sess.run(
+            [G_solver, G_loss],
+            feed_dict={z0: sampler(batch_size, dim_z)}
+        )
 
         _, cur_lr = sess.run([increment_step, lr])
 

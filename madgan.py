@@ -9,7 +9,7 @@ from models.mnist_models import *
 
 
 def train_madgan(data, g_net, d_net, name='MADGAN',
-                 dim_z=128, n_iters=1e5, lr=1e-4, batch_size=128, n_generators=8,
+                 dim_z=128, n_iters=1e5, lr=1e-4, batch_size=128, n_generators=4,
                  sampler=sample_z, eval_funcs=[]):
 
     ### 0. Common preparation
