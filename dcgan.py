@@ -3,7 +3,7 @@
 
 from tensorflow.examples.tutorials.mnist import input_data
 from common import *
-from datasets import data_celeba
+from datasets import data_celeba, data_mnist
 from models.celeba_models import *
 from models.mnist_models import *
 
@@ -121,7 +121,7 @@ if __name__ == '__main__':
     if args.datasets == 'mnist':
         dim_z = 64
 
-        data = input_data.read_data_sets('datasets/mnist/', one_hot=True, reshape=False)
+        data = data_mnist.MnistWrapper('datasets/mnist/')
         g_net = SimpleGEN(dim_z, last_act=tf.sigmoid)
         d_net = SimpleCNN(1, last_act=tf.sigmoid)
 
