@@ -24,10 +24,10 @@ Comments
 
 | GAN Name | HQ samples (%) | Modes (%) |
 |----|----|----|
-| DCGAN | 61.9 | *100* |
-| MAD-GAN | *91.9* | *100* |
-| WGAN | 58.4 | *100* |
-| GoGAN | 48.24 | *100* |
+| DCGAN | 61.9 | 100 |
+| MAD-GAN | *91.9* | 100 |
+| WGAN | 58.4 | 100 |
+| GoGAN | 48.24 | 100 |
 | BEGAN | 62.0 | 24 |
 
 - Sample results with a fixed LR (=1e-4) and 100k iterations.
@@ -57,11 +57,11 @@ BEGAN with LR=1e-4 (left) and LR=1e-6 (right)
 
 | GAN Name | HQ samples (%) | Modes (%) |
 |----|----|----|
-| DCGAN | 47.0 | *100* |
-| MAD-GAN | *74.2* | *100* |
-| WGAN | 48.4 | *100* |
-| GoGAN | 65.2 | 20 |
-| BEGAN | 41.7 | 88 |
+| DCGAN | 100.0 | 100 |
+| MAD-GAN | 99.6 | 100 |
+| WGAN | 94.4 | 100 |
+| GoGAN | 92.9 | 100 |
+| BEGAN | 100.0 | 27 |
 
 - Sample results with a fixed LR (=1e-4) and 100k iterations.
 
