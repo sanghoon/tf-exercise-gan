@@ -6,16 +6,19 @@ from common import *
 from datasets import data_celeba, data_mnist
 from models.celeba_models import *
 from models.mnist_models import *
+from eval_funcs import *
 
 
 def train_began(data, g_net, d_enc, d_dec, name='BEGAN',
                  dim_z=128, n_iters=1e5, lr=1e-4, batch_size=128,
-                 l_k = 0.001, g_k = 0.5,
-                 sampler=sample_z, eval_funcs=[]):
+                 sampler=sample_z, eval_funcs=[],
+                 l_k=0.001, g_k=0.5):
 
     ### 0. Common preparation
     hyperparams = {'LR': lr}
     base_dir, out_dir, log_dir = create_dirs(name, g_net.name, d_enc.name, hyperparams)
+
+    tf.reset_default_graph()
 
     global_step = tf.Variable(0, trainable=False)
     increment_step = tf.assign_add(global_step, 1)
@@ -81,7 +84,7 @@ def train_began(data, g_net, d_enc, d_dec, name='BEGAN',
 
     ### 3. Run a session
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.95)
-    sess = tf.Session(config=tf.ConfigProto(log_device_placement=True, allow_soft_placement=False, gpu_options=gpu_options))
+    sess = tf.Session(config=tf.ConfigProto(log_device_placement=False, allow_soft_placement=False, gpu_options=gpu_options))
     sess.run(tf.global_variables_initializer())
 
     writer = tf.summary.FileWriter(log_dir, sess.graph)
@@ -131,6 +134,9 @@ def train_began(data, g_net, d_enc, d_dec, name='BEGAN',
         if it % SAVE_INTERVAL == 0:
             saver.save(sess, out_dir + 'began', it)
 
+    sess.close()
+
+
 
 if __name__ == '__main__':
     args = parse_args(additional_args=[])
@@ -140,6 +146,9 @@ if __name__ == '__main__':
         set_gpu(args.gpu)
 
     if args.datasets == 'mnist':
+        out_name = 'BEGAN_mnist'
+        out_name = out_name if len(args.tag) == 0 else '{}_{}'.format(out_name, args.tag)
+
         dim_z = 64
         dim_h = 16
 
@@ -150,10 +159,14 @@ if __name__ == '__main__':
         d_enc = SimpleCNN(n_out=dim_h, last_act=tf.identity, bn=False)
         d_dec = SimpleGEN(n_in=dim_h, last_act=tf.sigmoid, bn=False)
 
-        train_began(data, g_net, d_enc, d_dec, name='BEGAN_mnist', dim_z=dim_z,  batch_size=args.batchsize, lr=args.lr)
+        train_began(data, g_net, d_enc, d_dec, name=out_name, dim_z=dim_z,  batch_size=args.batchsize, lr=args.lr,
+                    eval_funcs=[lambda it, gen: eval_images_naive(it, gen, data)])
 
 
     elif args.datasets == 'celeba':
+        out_name = 'BEGAN_celeba'
+        out_name = out_name if len(args.tag) == 0 else '{}_{}'.format(out_name, args.tag)
+
         dim_z = 128
         dim_h = 64
 
@@ -164,4 +177,5 @@ if __name__ == '__main__':
         d_enc = DCGAN_D(n_out=dim_h, last_act=tf.identity, bn=False)
         d_dec = DCGAN_G(n_in=dim_h, last_act=tf.tanh, bn=False)
 
-        train_began(data, g_net, d_enc, d_dec, name='BEGAN_celeba', dim_z=dim_z, batch_size=args.batchsize, lr=args.lr)
+        train_began(data, g_net, d_enc, d_dec, name=out_name, dim_z=dim_z, batch_size=args.batchsize, lr=args.lr,
+                    eval_funcs=[lambda it, gen: eval_images_naive(it, gen, data)])

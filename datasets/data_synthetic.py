@@ -1,4 +1,4 @@
-from common import plot
+from common import scatter
 import matplotlib.pyplot as plt
 import random
 import numpy as np
@@ -91,7 +91,7 @@ class MoG:
     # TODO: refactoring
     def plot(self, img_generator, fig_id=None):
         samples = img_generator(1024)
-        fig = plot(samples, fig_id, shape=self.train.images[0].shape)
+        fig = scatter(samples, fig_id, xlim=(-7, 7), ylim=(-7, 7))
 
         # Plot true samples
         modes = [(m['x'], m['y']) for m in self.modes]
@@ -159,7 +159,7 @@ class Spiral():
     # TODO: refactoring
     def plot(self, img_generator, fig_id=None):
         samples = img_generator(1024)
-        fig = plot(samples, fig_id, shape=self.train.images[0].shape)
+        fig = scatter(samples, fig_id, xlim=(-7, 7), ylim=(-7,7))
 
         # Plot true samples
         true_X, _ = tf_learn.datasets.synthetic.spirals(self.n_modes, n_loops=1)

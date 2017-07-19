@@ -5,16 +5,18 @@ from common import *
 from datasets import data_celeba, data_mnist
 from models.celeba_models import *
 from models.mnist_models import *
-
+from eval_funcs import *
 
 def train_gogan(data, g_net, d_net, name='GoGAN',
                  dim_z=128, n_iters=1e5, lr=1e-4, batch_size=128,
-                 w_clip=0.1,
-                 sampler=sample_z, eval_funcs=[]):
+                 sampler=sample_z, eval_funcs=[],
+                 w_clip=0.1, epsilon=1.0, l_disc=1.0, l_rank=0.5):
 
     ### 0. Common preparation
-    hyperparams = {'LR': lr}
+    hyperparams = {'LR': lr, 'WClip': w_clip}
     base_dir, out_dir, log_dir = create_dirs(name, g_net.name, d_net.name, hyperparams)
+
+    tf.reset_default_graph()
 
     global_step = tf.Variable(0, trainable=False)
     increment_step = tf.assign_add(global_step, 1)
@@ -24,10 +26,6 @@ def train_gogan(data, g_net, d_net, name='GoGAN',
     x_shape = data.train.images[0].shape
     z0 = tf.placeholder(tf.float32, shape=[None, dim_z])        # Latent var.
     x0 = tf.placeholder(tf.float32, shape=(None,) + x_shape)    # Generated images
-
-    epsilon = 1.0   # Margin
-    l1 = 1.0        # Disc. loss
-    l2 = 0.5        # Rank. loss
 
     # 1st stage
     G1 = g_net(z0, 'GoGAN_G1')
@@ -50,8 +48,8 @@ def train_gogan(data, g_net, d_net, name='GoGAN',
     D2_real = d_net(x0, 'GoGAN_D2')
     D2_fake = d_net(G2, 'GoGAN_D2', reuse=True)
 
-    D2_loss = tf.reduce_mean(tf.nn.relu(D2_fake + epsilon - D2_real)) * l1 \
-            + tf.reduce_mean(tf.nn.relu(D1_fake + 2 * epsilon - D2_real)) * l2
+    D2_loss = tf.reduce_mean(tf.nn.relu(D2_fake + epsilon - D2_real)) * l_disc \
+            + tf.reduce_mean(tf.nn.relu(D1_fake + 2 * epsilon - D2_real)) * l_rank
     G2_loss = -tf.reduce_mean(D2_fake)
 
     clip_D2 = [p.assign(tf.clip_by_value(p, -w_clip, w_clip))
@@ -166,6 +164,8 @@ def train_gogan(data, g_net, d_net, name='GoGAN',
         if it % SAVE_INTERVAL == 0:
             saver.save(sess, out_dir + 'gogan', it)
 
+    sess.close()
+
 
 if __name__ == '__main__':
     args = parse_args(additional_args=[
@@ -177,6 +177,9 @@ if __name__ == '__main__':
         set_gpu(args.gpu)
 
     if args.datasets == 'mnist':
+        out_name = 'GoGAN_mnist'
+        out_name = out_name if len(args.tag) == 0 else '{}_{}'.format(out_name, args.tag)
+
         dim_z = 64
 
         data = data_mnist.MnistWrapper('datasets/mnist/')
@@ -184,11 +187,15 @@ if __name__ == '__main__':
         g_net = SimpleGEN(dim_z, last_act=tf.sigmoid)
         d_net = SimpleCNN(n_out=1, last_act=tf.identity)
 
-        train_gogan(data, g_net, d_net, name='GoGAN_mnist', dim_z=dim_z,  batch_size=args.batchsize, lr=args.lr,
-                    w_clip=args.w_clip)
+        train_gogan(data, g_net, d_net, name=out_name, dim_z=dim_z,  batch_size=args.batchsize, lr=args.lr,
+                    w_clip=args.w_clip,
+                    eval_funcs=[lambda it, gen: eval_images_naive(it, gen, data)])
 
 
     elif args.datasets == 'celeba':
+        out_name = 'GoGAN_celeba'
+        out_name = out_name if len(args.tag) == 0 else '{}_{}'.format(out_name, args.tag)
+
         dim_z = 128
         dim_h = 64
 
@@ -197,5 +204,6 @@ if __name__ == '__main__':
         g_net = DCGAN_G(dim_z, last_act=tf.tanh)
         d_net = DCGAN_D(n_out=1, last_act=tf.identity)
 
-        train_gogan(data, g_net, d_net, name='GoGAN_celeba', dim_z=dim_z, batch_size=args.batchsize, lr=args.lr,
-                    w_clip=args.w_clip)
+        train_gogan(data, g_net, d_net, name=out_name, dim_z=dim_z, batch_size=args.batchsize, lr=args.lr,
+                    w_clip=args.w_clip,
+                    eval_funcs=[lambda it, gen: eval_images_naive(it, gen, data)])

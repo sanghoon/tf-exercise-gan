@@ -1,9 +1,9 @@
-import tensorflow as tf
+from common import plot
 import os.path
 import glob
 import cv2
 import random
-from common import plot
+import numpy as np
 
 
 class ImgDataset:
@@ -21,7 +21,24 @@ class ImgDataset:
         if shuffle:
             random.shuffle(self.img_list)
 
+        #self.px_mean = np.array([127.5, 127.5, 127.5]).reshape((1, 1, -1))
+        self.px_mean = np.array([97.3, 108.1, 128.8], dtype=np.float32)
+        self.preloaded = False
         self.images = [self[0]]     # Dummy image for size calculation in other codes
+
+    def update_mean(self):
+        # Naive sample mean (10240 samples)
+        images = np.array(map(cv2.imread, self.img_list), dtype=np.float32)
+        _mean = np.average(images, axis=0)
+
+        self.px_mean = _mean
+
+    def preload(self):
+        images = map(cv2.imread, self.img_list)
+        images = map(self.crop_and_resize, images)
+
+        self.images = images
+        self.preloaded = True
 
     def crop_and_resize(self, im):
         # Crop
@@ -36,12 +53,15 @@ class ImgDataset:
             im = cv2.resize(im, (self.resize, self.resize))
 
         # rescale (range: -1.0~1.0)
-        im = (im / 127.5 - 1.)
+        im = ((im - 127.5) / 127.5).astype(np.float32)
         # TODO: Compute real mean, scale factor
 
         return im
 
     def __getitem__(self, item):
+        if self.preloaded:
+            return self.images[item]
+
         if isinstance(item, tuple) or isinstance(item, slice):
             im = map(cv2.imread, self.img_list[item])
             im = map(self.crop_and_resize, im)
@@ -71,11 +91,15 @@ class ImgDataset:
 
         return samples, None
 
+
 class CelebA:
     def __init__(self, dataDir):
         self.train = ImgDataset(dataDir, i_from=0, i_to=150000, shuffle=True, crop=108, resize=64)
-        self.validation = ImgDataset(dataDir, i_from=150000, i_to=None, crop=108, resize=64)
-        self.test = ImgDataset(dataDir, i_from=150000, i_to=None, crop=108, resize=64)
+        self.validation = ImgDataset(dataDir, i_from=150000, i_to=160000, crop=108, resize=64)
+        self.test = ImgDataset(dataDir, i_from=160000, i_to=None, crop=108, resize=64)
+
+        # for evaluation
+        self.validation.preload()
 
         # TODO: Follow the original set's train/val/test pratition
         # TODO: Provide label info.

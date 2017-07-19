@@ -13,8 +13,8 @@ import io
 
 # Global configs
 PRNT_INTERVAL = 100
-EVAL_INTERVAL = 1000
-SAVE_INTERVAL = 5000
+EVAL_INTERVAL = 2000
+SAVE_INTERVAL = 4000
 
 DATASETS = ['mnist', 'celeba']
 
@@ -57,10 +57,6 @@ def check_dataset_type(shape):
 
 
 def plot(samples, figId=None, retBytes=False, shape=None):
-    if check_dataset_type(shape) == 'synthetic':
-        assert(shape[0] == 2)
-        return scatter(samples, figId, retBytes)
-
     if figId is None:
         fig = plt.figure(figsize=(4, 4))
     else:
@@ -91,7 +87,7 @@ def plot(samples, figId=None, retBytes=False, shape=None):
     return fig
 
 
-def scatter(samples, figId=None, retBytes=False):
+def scatter(samples, figId=None, retBytes=False, xlim=None, ylim=None):
     if figId is None:
         fig = plt.figure()
     else:
@@ -99,6 +95,10 @@ def scatter(samples, figId=None, retBytes=False):
         fig.clear()
 
     plt.scatter(samples[:,0], samples[:,1], alpha=0.1)
+    if xlim:
+        plt.xlim(xlim[0], xlim[1])
+    if ylim:
+        plt.ylim(ylim[0], ylim[1])
 
     if retBytes:
         buf = io.BytesIO()

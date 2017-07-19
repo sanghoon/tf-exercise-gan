@@ -6,6 +6,7 @@ from common import *
 from datasets import data_celeba, data_mnist
 from models.celeba_models import *
 from models.mnist_models import *
+from eval_funcs import *
 
 
 def train_dcgan(data, g_net, d_net, name='DCGAN',
@@ -15,6 +16,8 @@ def train_dcgan(data, g_net, d_net, name='DCGAN',
     ### 0. Common preparation
     hyperparams = {'LR': lr}
     base_dir, out_dir, log_dir = create_dirs(name, g_net.name, d_net.name, hyperparams)
+
+    tf.reset_default_graph()
 
     global_step = tf.Variable(0, trainable=False)
     increment_step = tf.assign_add(global_step, 1)
@@ -110,6 +113,8 @@ def train_dcgan(data, g_net, d_net, name='DCGAN',
         if it % SAVE_INTERVAL == 0:
             saver.save(sess, out_dir + 'dcgan', it)
 
+    sess.close()
+
 
 if __name__ == '__main__':
     args = parse_args(additional_args=[])
@@ -119,19 +124,27 @@ if __name__ == '__main__':
         set_gpu(args.gpu)
 
     if args.datasets == 'mnist':
+        out_name = 'DCGAN_mnist'
+        out_name = out_name if len(args.tag) == 0 else '{}_{}'.format(out_name, args.tag)
+
         dim_z = 64
 
         data = data_mnist.MnistWrapper('datasets/mnist/')
         g_net = SimpleGEN(dim_z, last_act=tf.sigmoid)
         d_net = SimpleCNN(1, last_act=tf.sigmoid)
 
-        train_dcgan(data, g_net, d_net, name='DCGAN_mnist', dim_z=dim_z,  batch_size=args.batchsize, lr=args.lr)
+        train_dcgan(data, g_net, d_net, name=out_name, dim_z=dim_z,  batch_size=args.batchsize, lr=args.lr,
+                    eval_funcs=[lambda it, gen: eval_images_naive(it, gen, data)])
 
     elif args.datasets == 'celeba':
+        out_name = 'DCGAN_celeba'
+        out_name = out_name if len(args.tag) == 0 else '{}_{}'.format(out_name, args.tag)
+
         dim_z = 128
 
         data = data_celeba.CelebA('datasets/img_align_celeba')
         g_net = DCGAN_G(dim_z, last_act=tf.tanh)
         d_net = DCGAN_D(1, last_act=tf.sigmoid)
 
-        train_dcgan(data, g_net, d_net, name='DCGAN_celeba', dim_z=dim_z, batch_size=args.batchsize, lr=args.lr)
+        train_dcgan(data, g_net, d_net, name=out_name, dim_z=dim_z, batch_size=args.batchsize, lr=args.lr,
+                    eval_funcs=[lambda it, gen: eval_images_naive(it, gen, data)])

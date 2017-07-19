@@ -1,20 +1,24 @@
 #!/usr/bin/env/python
-# Tensorflow impl. of MAD-GAN
+# Tensorflow impl. of MAD-GAN (The 2nd alt.)
 
 from tensorflow.examples.tutorials.mnist import input_data
 from common import *
 from datasets import data_celeba, data_mnist
 from models.celeba_models import *
 from models.mnist_models import *
+from eval_funcs import *
 
 
 def train_madgan(data, g_net, d_net, name='MADGAN',
-                 dim_z=128, n_iters=1e5, lr=1e-4, batch_size=128, n_generators=4,
-                 sampler=sample_z, eval_funcs=[]):
+                 dim_z=128, n_iters=1e5, lr=1e-4, batch_size=128,
+                 sampler=sample_z, eval_funcs=[],
+                 n_generators=4):
 
     ### 0. Common preparation
     hyperparams = {'NGEN': n_generators, 'LR': lr}
     base_dir, out_dir, log_dir = create_dirs(name, g_net.name, d_net.name, hyperparams)
+
+    tf.reset_default_graph()
 
     global_step = tf.Variable(0, trainable=False)
     increment_step = tf.assign_add(global_step, 1)
@@ -134,10 +138,12 @@ def train_madgan(data, g_net, d_net, name='MADGAN',
         if it % SAVE_INTERVAL == 0:
             saver.save(sess, out_dir + 'madgan', it)
 
+    sess.close()
+
 
 if __name__ == '__main__':
     args = parse_args(additional_args=[
-        ('--n_gen', {'type': int, 'default': 8}),
+        ('--n_gen', {'type': int, 'default': 4}),
     ])
     print args
 
@@ -145,6 +151,9 @@ if __name__ == '__main__':
         set_gpu(args.gpu)
 
     if args.datasets == 'mnist':
+        out_name = 'MADGAN_mnist'
+        out_name = out_name if len(args.tag) == 0 else '{}_{}'.format(out_name, args.tag)
+
         dim_z = 64
         n_generators = args.n_gen
 
@@ -152,10 +161,14 @@ if __name__ == '__main__':
         g_net = SimpleGEN(dim_z, last_act=tf.sigmoid)
         d_net = SimpleCNN(n_generators + 1)
 
-        train_madgan(data, g_net, d_net, name='MADGAN_mnist',
-                     dim_z=dim_z, n_generators=n_generators, batch_size=args.batchsize, lr=args.lr)
+        train_madgan(data, g_net, d_net, name=out_name,
+                     dim_z=dim_z, n_generators=n_generators, batch_size=args.batchsize, lr=args.lr,
+                     eval_funcs=[lambda it, gen: eval_images_naive(it, gen, data)])
 
     elif args.datasets == 'celeba':
+        out_name = 'MADGAN_celeba'
+        out_name = out_name if len(args.tag) == 0 else '{}_{}'.format(out_name, args.tag)
+
         dim_z = 128
         n_generators = args.n_gen
 
@@ -163,5 +176,6 @@ if __name__ == '__main__':
         g_net = DCGAN_G(dim_z, last_act=tf.tanh)        # Used identity instead of tanh
         d_net = DCGAN_D(n_generators + 1)
 
-        train_madgan(data, g_net, d_net, name='MADGAN_celeba',
-                     dim_z=dim_z, n_generators=n_generators, batch_size=args.batchsize, lr=args.lr)
+        train_madgan(data, g_net, d_net, name=out_name,
+                     dim_z=dim_z, n_generators=n_generators, batch_size=args.batchsize, lr=args.lr,
+                     eval_funcs=[lambda it, gen: eval_images_naive(it, gen, data)])

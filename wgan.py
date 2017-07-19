@@ -1,20 +1,22 @@
 #!/usr/bin/env python
-# Tensorflow impl. of GoGAN
+# Tensorflow impl. of WGAN
 
 from common import *
 from datasets import data_celeba, data_mnist
 from models.celeba_models import *
 from models.mnist_models import *
-
+from eval_funcs import *
 
 def train_wgan(data, g_net, d_net, name='WGAN',
                  dim_z=128, n_iters=1e5, lr=1e-4, batch_size=128,
-                 w_clip=0.1,
-                 sampler=sample_z, eval_funcs=[]):
+                 sampler=sample_z, eval_funcs=[],
+                 w_clip=0.1):
 
     ### 0. Common preparation
-    hyperparams = {'LR': lr}
+    hyperparams = {'LR': lr, 'WClip': w_clip}
     base_dir, out_dir, log_dir = create_dirs(name, g_net.name, d_net.name, hyperparams)
+
+    tf.reset_default_graph()
 
     global_step = tf.Variable(0, trainable=False)
     increment_step = tf.assign_add(global_step, 1)
@@ -66,7 +68,7 @@ def train_wgan(data, g_net, d_net, name='WGAN',
 
     ### 3. Run a session
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.95)
-    sess = tf.Session(config=tf.ConfigProto(log_device_placement=True, allow_soft_placement=False, gpu_options=gpu_options))
+    sess = tf.Session(config=tf.ConfigProto(log_device_placement=False, allow_soft_placement=False, gpu_options=gpu_options))
     sess.run(tf.global_variables_initializer())
 
     writer = tf.summary.FileWriter(log_dir, sess.graph)
@@ -114,6 +116,8 @@ def train_wgan(data, g_net, d_net, name='WGAN',
         if it % SAVE_INTERVAL == 0:
             saver.save(sess, out_dir + 'gogan', it)
 
+    sess.close()
+
 
 if __name__ == '__main__':
     args = parse_args(additional_args=[
@@ -125,6 +129,9 @@ if __name__ == '__main__':
         set_gpu(args.gpu)
 
     if args.datasets == 'mnist':
+        out_name = 'WGAN_mnist'
+        out_name = out_name if len(args.tag) == 0 else '{}_{}'.format(out_name, args.tag)
+
         dim_z = 64
 
         data = data_mnist.MnistWrapper('datasets/mnist/')
@@ -132,18 +139,21 @@ if __name__ == '__main__':
         g_net = SimpleGEN(dim_z, last_act=tf.sigmoid)
         d_net = SimpleCNN(n_out=1, last_act=tf.identity)
 
-        train_wgan(data, g_net, d_net, name='WGAN_mnist', dim_z=dim_z,  batch_size=args.batchsize, lr=args.lr,
-                   w_clip=args.w_clip)
+        train_wgan(data, g_net, d_net, name=out_name, dim_z=dim_z,  batch_size=args.batchsize, lr=args.lr,
+                   w_clip=args.w_clip,
+                   eval_funcs=[lambda it, gen: eval_images_naive(it, gen, data)])
 
 
     elif args.datasets == 'celeba':
+        out_name = 'WGAN_celeba'
+        out_name = out_name if len(args.tag) == 0 else '{}_{}'.format(out_name, args.tag)
+
         dim_z = 128
-        dim_h = 64
 
         data = data_celeba.CelebA('datasets/img_align_celeba')
 
         g_net = DCGAN_G(dim_z, last_act=tf.tanh)
         d_net = DCGAN_D(n_out=1, last_act=tf.identity)
 
-        train_wgan(data, g_net, d_net, name='WGAN_celeba', dim_z=dim_z, batch_size=args.batchsize, lr=args.lr,
-                   w_clip=args.w_clip)
+        train_wgan(data, g_net, d_net, name=out_name, dim_z=dim_z, batch_size=args.batchsize, lr=args.lr,
+                   eval_funcs=[lambda it, gen: eval_images_naive(it, gen, data)])
