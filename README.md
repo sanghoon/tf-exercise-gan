@@ -5,12 +5,12 @@ Tensorflow implementation and benchmark of diffrent GANs
 
 ## GAN implementations
 
-- [x] DCGAN
-- [x] WGAN
-- [x] BEGAN
-- [x] MAD-GAN
-- [x] GoGAN
-- ...
+- [x] **DCGAN** from 'Unsupervised Representation Learning with Deep Convolutional Generative Adversarial Networks' (https://arxiv.org/abs/1511.06434)
+- [x] **WGAN** from 'Wasserstein GAN' (https://arxiv.org/abs/1701.07875)
+- [x] **BEGAN** from 'BEGAN: Boundary Equilibrium Generative Adversarial Networks' (https://arxiv.org/abs/1703.10717)
+- [x] **MAD-GAN** from 'Multi-Agent Diverse Generative Adversarial Networks' (https://arxiv.org/abs/1704.02906)
+- [x] **GoGAN** from 'Gang of GANs: Generative Adversarial Networks with Maximum Margin Ranking' (https://arxiv.org/abs/1704.04865)
+- [ ] ...
 
 ## Tasks
 
