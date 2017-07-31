@@ -201,7 +201,7 @@ if __name__ == '__main__':
 
         data = data_celeba.CelebA('datasets/img_align_celeba')
 
-        g_net = DCGAN_G(dim_z, last_act=tf.tanh)
+        g_net = DCGAN_G(dim_z, last_act=tf.sigmoid)
         d_net = DCGAN_D(n_out=1, last_act=tf.identity)
 
         train_gogan(data, g_net, d_net, name=out_name, dim_z=dim_z, batch_size=args.batchsize, lr=args.lr,

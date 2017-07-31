@@ -72,8 +72,7 @@ def plot(samples, figId=None, retBytes=False, shape=None):
         ax.set_yticklabels([])
         ax.set_aspect('equal')
         if shape and shape[2] == 3:
-            # FIXME: Naive impl. of rescaling
-            rescaled = (sample + 1.0) / 2.0
+            rescaled = np.clip(sample, 0.0, 1.0)
             plt.imshow(rescaled.reshape(*shape))
         else:
             plt.imshow(sample.reshape(28, 28), cmap='Greys_r')
@@ -110,13 +109,13 @@ def scatter(samples, figId=None, retBytes=False, xlim=None, ylim=None):
 
 
 
-def parse_args(modelnames=[], additional_args=[]):
+def parse_args(batchsize=128, lr=1e-5, additional_args=[]):
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--gpu', type=int, default=0)
-    parser.add_argument('--batchsize', type=int, default=128)
+    parser.add_argument('--batchsize', type=int, default=batchsize)
     parser.add_argument('--datasets', choices=DATASETS, default=DATASETS[0])
-    parser.add_argument('--lr', type=float, default=1e-5)
+    parser.add_argument('--lr', type=float, default=lr)
     parser.add_argument('--tag', type=str, default='')
 
     for key, kwargs in additional_args:

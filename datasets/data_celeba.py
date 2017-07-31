@@ -15,23 +15,14 @@ class ImgDataset:
         self.shuffle = shuffle
         self._i = 0
 
-        self.resize = resize
-        self.crop = crop
+        self.resize = resize        # Expected width and height
+        self.crop = crop            # Cropsize at center
 
         if shuffle:
             random.shuffle(self.img_list)
 
-        #self.px_mean = np.array([127.5, 127.5, 127.5]).reshape((1, 1, -1))
-        self.px_mean = np.array([97.3, 108.1, 128.8], dtype=np.float32)
         self.preloaded = False
         self.images = [self[0]]     # Dummy image for size calculation in other codes
-
-    def update_mean(self):
-        # Naive sample mean (10240 samples)
-        images = np.array(map(cv2.imread, self.img_list), dtype=np.float32)
-        _mean = np.average(images, axis=0)
-
-        self.px_mean = _mean
 
     def preload(self):
         images = map(cv2.imread, self.img_list)
@@ -52,9 +43,11 @@ class ImgDataset:
         if self.resize:
             im = cv2.resize(im, (self.resize, self.resize))
 
-        # rescale (range: -1.0~1.0)
-        im = ((im - 127.5) / 127.5).astype(np.float32)
-        # TODO: Compute real mean, scale factor
+        # rescale (range: 0.0~1.0)
+        im = im.astype(np.float32) / 255.0
+
+        # Reverse RGB-ordering (Please refer http://www.pyimagesearch.com/2014/11/03/display-matplotlib-rgb-image/)
+        im = im[:, :, (2,1,0)]
 
         return im
 
@@ -121,11 +114,11 @@ if __name__ == '__main__':
     ims, _ = data.train.next_batch(16)
 
     for i in range(16):
-        cv2.imshow('image', ims[i])
+        cv2.imshow('image', ims[i][:, :, (2,1,0)])
         cv2.waitKey(0)
 
     ims, _ = data.test.next_batch(16)
 
     for i in range(16):
-        cv2.imshow('image', ims[i])
+        cv2.imshow('image', ims[i][:, :, (2,1,0)])
         cv2.waitKey(0)

@@ -173,9 +173,9 @@ if __name__ == '__main__':
         data = data_celeba.CelebA('datasets/img_align_celeba')
 
         # BEGAN doesn't seem to work well with BN
-        g_net = DCGAN_G(dim_z, last_act=tf.tanh, bn=False)
+        g_net = DCGAN_G(dim_z, last_act=tf.sigmoid, bn=False)
         d_enc = DCGAN_D(n_out=dim_h, last_act=tf.identity, bn=False)
-        d_dec = DCGAN_G(n_in=dim_h, last_act=tf.tanh, bn=False)
+        d_dec = DCGAN_G(n_in=dim_h, last_act=tf.sigmoid, bn=False)
 
         train_began(data, g_net, d_enc, d_dec, name=out_name, dim_z=dim_z, batch_size=args.batchsize, lr=args.lr,
                     eval_funcs=[lambda it, gen: eval_images_naive(it, gen, data)])

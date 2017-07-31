@@ -173,7 +173,7 @@ if __name__ == '__main__':
         n_generators = args.n_gen
 
         data = data_celeba.CelebA('datasets/img_align_celeba')
-        g_net = DCGAN_G(dim_z, last_act=tf.tanh)        # Used identity instead of tanh
+        g_net = DCGAN_G(dim_z, last_act=tf.sigmoid)
         d_net = DCGAN_D(n_generators + 1)
 
         train_madgan(data, g_net, d_net, name=out_name,

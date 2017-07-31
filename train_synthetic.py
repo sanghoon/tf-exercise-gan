@@ -10,9 +10,8 @@ from eval_funcs import eval_synthetic
 
 
 if __name__ == '__main__':
-    args = parse_args(additional_args=[
-        ('--n_gen', {'type': int, 'default': 8})
-    ,])
+    args = parse_args(lr=1e-4,
+                      additional_args=[('--n_gen', {'type': int, 'default': 8}),])
     print args
 
     if args.gpu:
