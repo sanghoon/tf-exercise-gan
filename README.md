@@ -19,9 +19,11 @@ Tensorflow implementation and benchmark of diffrent GANs
 - [x] Reproduce GANs on MNIST and CelebA datasets
 - [x] Impl. training & evaluation on synthetic datasets
 - [x] Add sample results
+- [ ] Impl. inference-only codes for GANs (may require refactoring)
 - [ ] Impl. better evaluation function for real images (e.g. IvOM, energy dist., ...)
 - [ ] Impl. a result logger
-- [ ] Compare GANs (synthetic and MNIST)
+- [x] Compare GANs (synthetic)
+- [ ] Compare GANs (MNIST and CelebA dataset)
 - [ ] Add more GAN implementations
 
 
@@ -33,6 +35,9 @@ Tensorflow implementation and benchmark of diffrent GANs
 - MAD-GAN worked best in the tested datasets.
 - ![MADGAN_Spiral](assets/170718_synthetic/MADGAN_SynSpiral_toydisc_toydisc_LR=0.0001_NGEN=8.gif)
 
-170718 / [Sample results on MNIST and CelebA datasets](assets/170718_mnist_and_celeba/samples.md)
+170718 / [Sample results on MNIST dataset](assets/170718_mnist/samples.md)
 
-- ![BEGAN_CELEBA099](assets/170718_mnist_and_celeba/BEGAN_celeba_099.png)
+- ![WGAN_MNIST](assets/170718_mnist/WGAN_mnist_099.png)
+
+170809 / [Sample results on CelebA dataset](assets/170809_celeba/samples.md)
+- ![BEGAN_CELEBA](assets/170809_celeba/fig_BEGAN_gen_0096.png)

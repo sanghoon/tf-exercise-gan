@@ -89,7 +89,7 @@ def train_gogan(data, g_net, d_net, name='GoGAN',
 
     ### 3. Run a session
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.95)
-    sess = tf.Session(config=tf.ConfigProto(log_device_placement=True, allow_soft_placement=False, gpu_options=gpu_options))
+    sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=False, gpu_options=gpu_options))
     sess.run(tf.global_variables_initializer())
 
     writer = tf.summary.FileWriter(log_dir, sess.graph)
