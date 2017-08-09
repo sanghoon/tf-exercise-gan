@@ -1,6 +1,6 @@
 # tf-exercise-gan
 
-Tensorflow implementation and benchmark of diffrent GANs
+Tensorflow implementation of different GANs and their comparisions
 
 
 ## GAN implementations
@@ -10,7 +10,8 @@ Tensorflow implementation and benchmark of diffrent GANs
 - [x] **BEGAN** from 'BEGAN: Boundary Equilibrium Generative Adversarial Networks' (https://arxiv.org/abs/1703.10717)
 - [x] **MAD-GAN** from 'Multi-Agent Diverse Generative Adversarial Networks' (https://arxiv.org/abs/1704.02906)
 - [x] **GoGAN** from 'Gang of GANs: Generative Adversarial Networks with Maximum Margin Ranking' (https://arxiv.org/abs/1704.04865)
-- [ ] ...
+- [ ] ... (To be added)
+
 
 ## Tasks
 
@@ -19,11 +20,12 @@ Tensorflow implementation and benchmark of diffrent GANs
 - [x] Reproduce GANs on MNIST and CelebA datasets
 - [x] Impl. training & evaluation on synthetic datasets
 - [x] Add sample results
-- [ ] Impl. inference-only codes for GANs (may require refactoring)
+- [ ] Impl. inference-only code for GANs (may require refactoring)
 - [ ] Impl. better evaluation function for real images (e.g. IvOM, energy dist., ...)
 - [ ] Impl. a result logger
 - [x] Compare GANs (synthetic)
-- [ ] Compare GANs (MNIST and CelebA dataset)
+- [x] Compare GANs (MNIST and CelebA dataset)
+- [ ] Add quantitative comparisons
 - [ ] Add more GAN implementations
 
 
@@ -41,3 +43,6 @@ Tensorflow implementation and benchmark of diffrent GANs
 
 170809 / [Sample results on CelebA dataset](assets/170809_celeba/samples.md)
 - ![BEGAN_CELEBA](assets/170809_celeba/fig_BEGAN_gen_0096.png)
+
+
+## Other References
