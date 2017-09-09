@@ -55,7 +55,7 @@ def train_madgan(data, g_net, d_net, name='MADGAN',
     # Class labels
     # TODO: Make this stochastic
     n_repeat = batch_size // n_generators
-    gt_list = [0] * batch_size + [n for i in range(n_repeat) for n in range(n_generators)]  # 0, ... , 0, 1, 1, 2, 2, ...
+    gt_list = [0] * batch_size + [i+1 for i in range(n_generators) for n in range(n_repeat)]  # 0, ... , 0, 1, 1, 2, 2, ...
     y0 = tf.Variable(tf.one_hot(gt_list, n_generators + 1))     # one-hot encoding of generator labels (0: real)
 
     # Loss functions
