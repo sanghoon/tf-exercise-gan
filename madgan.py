@@ -1,4 +1,4 @@
-#!/usr/bin/env/python
+#!/usr/bin/env python
 # Tensorflow impl. of MAD-GAN (The 2nd alt.)
 
 from tensorflow.examples.tutorials.mnist import input_data
@@ -55,11 +55,12 @@ def train_madgan(data, g_net, d_net, name='MADGAN',
     # Class labels
     # TODO: Make this stochastic
     n_repeat = batch_size // n_generators
-    gt_list = [0] * batch_size + [n for i in range(n_repeat) for n in range(n_generators)]  # 0, ... , 0, 1, 1, 2, 2, ...
-    y0 = tf.Variable(tf.one_hot(gt_list, n_generators + 1))     # one-hot encoding of generator labels (0: real)
+    gt_list = [0] * batch_size + [i+1 for i in range(n_generators) for n in range(n_repeat)]  # 0, ... , 0, 1, 1, 2, 2, ...
+    #y0 = tf.Variable(tf.one_hot(gt_list, n_generators + 1))     # one-hot encoding of generator labels (0: real)
 
     # Loss functions
-    D_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=D_batch, labels=y0))
+    #D_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=D_batch, labels=y0))
+    D_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=D_batch, labels=gt_list))
     G_loss = tf.reduce_mean(-tf.log(D_fake))
 
     D_solver = (tf.train.AdamOptimizer(learning_rate=lr, beta1=0.5)) \
@@ -128,7 +129,6 @@ def train_madgan(data, g_net, d_net, name='MADGAN',
             for i, output in enumerate(outputs):
                 figs[i] = data.plot(img_generator, fig_id=i)
                 figs[i].canvas.draw()
-
                 plt.savefig(out_dir + fig_names[i].format(it / 1000), bbox_inches='tight')
 
             # Run evaluation functions

@@ -112,7 +112,7 @@ def scatter(samples, figId=None, retBytes=False, xlim=None, ylim=None):
 def parse_args(batchsize=128, lr=1e-5, additional_args=[]):
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--gpu', type=int, default=0)
+    parser.add_argument('--gpu', type=int, default=3)   #TODO
     parser.add_argument('--batchsize', type=int, default=batchsize)
     parser.add_argument('--datasets', choices=DATASETS, default=DATASETS[0])
     parser.add_argument('--lr', type=float, default=lr)

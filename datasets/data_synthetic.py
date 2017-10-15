@@ -7,8 +7,11 @@ import tensorflow.contrib.learn as tf_learn
 
 
 class MoG:
-    def __init__(self):
+    def __init__(self, lpf = 1, hpf = 1):
         self.modes = []
+        self.dataExtractor = []
+        self.lowerProbFactor = lpf
+        self.higherProbFactor = hpf
 
         # Mimic tf datasets generator
         self.train = AttrDict({'next_batch':
@@ -27,7 +30,9 @@ class MoG:
 
     def generate_sample(self, with_label=False):
         # Pick a mode
-        mode = random.choice(self.modes)
+        # mode = random.choice(self.modes)
+        index = random.choice(self.dataExtractor)
+        mode = self.modes[index]
 
         x = np.random.normal(mode['x'], mode['std'])
         y = np.random.normal(mode['y'], mode['std'])
@@ -171,21 +176,63 @@ class Spiral():
         return fig
 
 
-def rect_MoG(size, std=0.25):
+def rect_MoG(size, lpf = 1, hpf = 1, std=0.1):
     assert(size % 2 == 1)
 
-    mog = MoG()
+    mog = MoG(lpf, hpf)
 
     _start = - size + 1
     _end = size
     _std = std
 
+    index = 0
+    lowProbMembr = [0, 4, 12, 20, 24]
+
+
     for i in range(_start, _end, 2):
         for j in range(_start, _end, 2):
-            mog.add_mode(i, j, _std)
+            mog.add_mode(2*i, 2*j, _std)
+            if index in lowProbMembr:
+                for iterInd in range(mog.lowerProbFactor):
+                    mog.dataExtractor.append(index)
+            else:
+                for iterInd in range(mog.higherProbFactor):
+                    mog.dataExtractor.append(index)
+            index += 1
 
     return mog
 
+def specs_MoG(size, lpf = 1, hpf = 1, std=0.1):
+    #uses specs.txt
+    assert(size % 2 == 1)
+
+    mog = MoG(lpf, hpf)
+
+    _start = - size + 1
+    _end = size
+    _std = std
+
+    index = 0
+    lowProbMembr = [0, 4, 12, 20, 24]
+
+    lines = []
+    with open('datasets/specs.txt') as f:
+        for line in f:
+            lines.append(line)
+
+    for line in lines:
+        i = float(line.rstrip().split()[0])
+        j = float(line.rstrip().split()[1])
+        mog.add_mode(i, j, _std)
+        if index in lowProbMembr:
+            for iterInd in range(mog.lowerProbFactor):
+                mog.dataExtractor.append(index)
+        else:
+            for iterInd in range(mog.higherProbFactor):
+                mog.dataExtractor.append(index)
+        index += 1
+
+    return mog
 
 if __name__ == '__main__':
     # Create
