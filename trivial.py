@@ -123,18 +123,20 @@ def train_trivial(data, g_net, d_net, name='TRIVIAL',
             cur_summary = sess.run(summaries, feed_dict={x0: batch_xs, z0: sampler(batch_size, dim_z)})
             writer.add_summary(cur_summary, it)
 
-        if it % EVAL_INTERVAL == 0:
+        if it % SHOW_FIG_INTERVAL == 0:
             # FIXME
             img_generator = lambda n: sess.run(output, feed_dict={z0: sampler(n, dim_z)})
 
             for i, output in enumerate(outputs):
-                figs[i] = data.plot(img_generator, fig_id=i)
+                figs[i] = data.plot(img_generator, fig_id=i, batch_size = batch_size)
                 figs[i].canvas.draw()
-                plt.savefig(out_dir + fig_names[i].format(it / 1000), bbox_inches='tight')
+                if it % EVAL_INTERVAL == 0:
+                    plt.savefig(out_dir + fig_names[i].format(it / 1000), bbox_inches='tight')
 
             # Run evaluation functions
-            for func in eval_funcs:
-                func(it, img_generator)
+            if it % EVAL_INTERVAL == 0:
+                for func in eval_funcs:
+                    func(it, img_generator)
 
         if it % SAVE_INTERVAL == 0:
             saver.save(sess, out_dir + 'TRIVIAL', it)

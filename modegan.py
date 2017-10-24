@@ -62,7 +62,7 @@ def train_modegan(data, g_net, d_enc, d_net, name='MODEGAN',
     saver = tf.train.Saver(get_trainable_params('MODEGAN_D') + get_trainable_params('MODEGAN_G') + get_trainable_params('MODEGAN_E') )
 
     # Initial setup for visualization
-    outputs = [G_sample,G_sample_reg]
+    outputs = [G_sample_reg, G_sample]
     figs = [None] * len(outputs)
     fig_names = ['fig_gen_{:04d}_MODEGAN.png', 'fig_gen_reg_{:04d}_MODEGAN.png']
 

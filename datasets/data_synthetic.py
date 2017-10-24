@@ -94,9 +94,9 @@ class MoG:
         return sum(visited)
 
     # TODO: refactoring
-    def plot(self, img_generator, fig_id=None):
-        samples = img_generator(1024)
-        fig = scatter(samples, fig_id, xlim=(-7, 7), ylim=(-7, 7))
+    def plot(self, img_generator, fig_id=None, batch_size = 128):
+        samples = img_generator(batch_size * 8)  #TODO originally 1024
+        fig = scatter(samples, fig_id, xlim=(-21, 21), ylim=(-21, 21)) #TODO Originally from -7 to 7
 
         # Plot true samples
         modes = [(m['x'], m['y']) for m in self.modes]
@@ -191,7 +191,7 @@ def rect_MoG(size, lpf = 1, hpf = 1, std=0.1):
 
     for i in range(_start, _end, 2):
         for j in range(_start, _end, 2):
-            mog.add_mode(2*i, 2*j, _std)
+            mog.add_mode(4*i, 4*j, _std)  #TODO: Originally it was (i, j, _std)
             if index in lowProbMembr:
                 for iterInd in range(mog.lowerProbFactor):
                     mog.dataExtractor.append(index)
@@ -199,7 +199,7 @@ def rect_MoG(size, lpf = 1, hpf = 1, std=0.1):
                 for iterInd in range(mog.higherProbFactor):
                     mog.dataExtractor.append(index)
             index += 1
-
+    
     return mog
 
 def specs_MoG(size, lpf = 1, hpf = 1, std=0.1):
