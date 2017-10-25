@@ -94,9 +94,9 @@ def scatter(samples, figId=None, retBytes=False, xlim=None, ylim=None):
         fig = plt.figure(figId)
         fig.clear()
     
-    nGen = 8 #TODO
-    colors = cm.rainbow(np.linspace(0, 1, nGen)) #TODO
-    colors = np.repeat(colors, len(samples[:,0])/nGen, 0) #TODO
+    n_gen = 8 #TODO
+    colors = cm.rainbow(np.linspace(0, 1, n_gen)) #TODO
+    colors = np.repeat(colors, len(samples[:,0])/n_gen, 0) #TODO
     
     #plt.scatter(samples[:,0], samples[:,1], c = colors, alpha=0.1) #TODO
     plt.scatter(samples[:,0], samples[:,1], alpha=0.1)
