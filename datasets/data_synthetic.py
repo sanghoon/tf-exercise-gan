@@ -4,6 +4,117 @@ import random
 import numpy as np
 from attrdict import AttrDict
 import tensorflow.contrib.learn as tf_learn
+import pandas as pd
+from scipy import stats, integrate
+import seaborn as sns
+sns.set(color_codes=True)
+
+class MoG1D:
+    def __init__(self, lpf = 1, hpf = 1):
+        self.modes = []
+        self.dataExtractor = []
+        self.lowerProbFactor = lpf
+        self.higherProbFactor = hpf
+
+        self.fig, self.axs = plt.subplots(ncols=2)
+        # Mimic tf datasets generator
+        self.train = AttrDict({'next_batch':
+                                   lambda b: (self.next_batch(b), None)})
+
+        self.train.images = [np.zeros([1])]
+
+    def add_mode(self, x, std=1.0):
+        x = float(x)
+        std = float(std)
+
+        self.modes.append({'x': x, 'std': std})
+
+        return self
+
+    def generate_sample(self, with_label=False):
+        # Pick a mode
+        # mode = random.choice(self.modes)
+        index = random.choice(self.dataExtractor)
+        mode = self.modes[index]
+
+        x = np.random.normal(mode['x'], mode['std'])
+
+        return x
+
+    def estimate_mode_idx(self, x, thres=3.0):
+        x = float(x)
+        thres = float(thres)
+
+        _min_dist = np.inf
+        _min_i = -1
+
+        for i, mode in enumerate(self.modes):
+            m_x = mode['x']
+            m_std = mode['std']
+
+            dist = np.sqrt((m_x - x) * (m_x - x))
+
+            if (dist <= thres * m_std):
+                # Keep the index with minimum dist.
+                if (dist < _min_dist):
+                    _min_i = i
+
+        return _min_i
+
+    def estimate_mode_idxs(self, arr, thres=3.0):
+        ret = np.apply_along_axis(lambda x:
+                                    self.estimate_mode_idx(x[0], thres),
+                                  1,
+                                  arr
+                                  )
+
+        return ret
+
+    def next_batch(self, batchsize=128):
+        numbers = []
+
+        for i in range(batchsize):
+            numbers.append(self.generate_sample())
+
+        return np.array(numbers).reshape(batchsize,1)
+
+    def get_hq_ratio(self, arr, thres=3.0):
+        ret = self.estimate_mode_idxs(arr, thres)
+
+        return np.sum(ret >= 0) / float(len(ret))
+
+    def get_n_modes(self, arr, thres=3.0):
+        visited = [False for x in self.modes]
+
+        ret = self.estimate_mode_idxs(arr, thres)
+        for r in ret:
+            if r >= 0:
+                visited[r] = True
+
+        return sum(visited)
+
+    def plot(self, img_generator, fig_id=None, batch_size = 128):
+        samples = img_generator(batch_size * 8)  #TODO originally 1024
+        #fig = scatter(samples, fig_id, xlim=(-21, 21), ylim=(-21, 21)) #TODO Originally from -7 to 7
+        data_samples=self.next_batch(batch_size*8)
+        sns.distplot(samples,ax=self.axs[0])
+        sns.distplot(data_samples,ax=self.axs[1])
+
+        #fig=dplot.get_figure()
+        # Plot true samples
+        #modes = [(m['x']) for m in self.modes]
+        #modes = np.array(modes)
+
+        #plt.figure(fig_id)
+        #plt.scatter(modes[:, 0], modes[:, 1])
+
+        return self.fig
+
+    # TODO: refactoring
+
+    @property
+    def n_modes(self):
+        return len(self.modes)
 
 
 class MoG:
@@ -99,7 +210,7 @@ class MoG:
         fig = scatter(samples, fig_id, xlim=(-21, 21), ylim=(-21, 21)) #TODO Originally from -7 to 7
 
         # Plot true samples
-        modes = [(m['x'], m['y']) for m in self.modes]
+        modes = [(m['x']) for m in self.modes]
         modes = np.array(modes)
 
         plt.figure(fig_id)
@@ -199,7 +310,7 @@ def rect_MoG(size, lpf = 1, hpf = 1, std=0.1):
                 for iterInd in range(mog.higherProbFactor):
                     mog.dataExtractor.append(index)
             index += 1
-    
+
     return mog
 
 def specs_MoG(size, lpf = 1, hpf = 1, std=0.1):
@@ -233,6 +344,40 @@ def specs_MoG(size, lpf = 1, hpf = 1, std=0.1):
         index += 1
 
     return mog
+
+def specs_MoG1D(size, lpf = 1, hpf = 1, std=0.1):
+    #uses specs.txt
+    #assert(size % 2 == 1)
+
+    mog = MoG1D(lpf, hpf)
+
+    _start = - size + 1
+    _end = size
+    _std = std
+
+    index = 0
+    lowProbMembr = [0, 4, 12, 20, 24]
+
+    lines = []
+    with open('datasets/specs1D.txt') as f:
+        for line in f:
+            lines.append(line)
+
+    for line in lines:
+        print(line.rstrip())
+        i = float(line.rstrip())
+        #j = float(line.rstrip().split()[1])
+        mog.add_mode(i, _std)
+        if index in lowProbMembr:
+            for iterInd in range(mog.lowerProbFactor):
+                mog.dataExtractor.append(index)
+        else:
+            for iterInd in range(mog.higherProbFactor):
+                mog.dataExtractor.append(index)
+        index += 1
+
+    return mog
+
 
 if __name__ == '__main__':
     # Create

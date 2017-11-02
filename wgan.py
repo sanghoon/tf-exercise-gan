@@ -75,7 +75,6 @@ def train_wgan(data, g_net, d_net, name='WGAN',
 
     print('{:>10}, {:>7}, {:>7}, {:>7}') \
         .format('Iters', 'cur_LR', 'WGAN_D', 'WGAN_G')
-
     for it in range(int(n_iters)):
         for _ in range(5):
             batch_xs, batch_ys = data.train.next_batch(batch_size)

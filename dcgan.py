@@ -1,9 +1,9 @@
 #!/usr/bin/env/python
 # Tensorflow impl. of DCGAN
 
+from datasets import data_celeba, data_mnist
 from tensorflow.examples.tutorials.mnist import input_data
 from common import *
-from datasets import data_celeba, data_mnist
 from models.celeba_models import *
 from models.mnist_models import *
 from eval_funcs import *

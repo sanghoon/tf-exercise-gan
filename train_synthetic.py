@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-from datasets.data_synthetic import *
 from dcgan import *
 from madgan import *
 from began import *
@@ -11,6 +10,7 @@ from trivial import *
 from models.toy_models import *
 from eval_funcs import eval_synthetic
 import random
+from datasets.data_synthetic import *
 
 if __name__ == '__main__':
     args = parse_args(lr=1e-4,
@@ -24,7 +24,7 @@ if __name__ == '__main__':
     random.seed(4)
 
     # Network params
-    dim_x = 2
+    dim_x = 1  #2
     dim_h = 128
     dim_z = 64
     dim_ae = 32     # BEGAN only
@@ -44,7 +44,7 @@ if __name__ == '__main__':
     #for name, data in [('SynMoG_'+str(prob[iteri]), rect_MoG(5, lpf[iteri], hpf[iteri]))]
     #for name, data in [('SynMoG_1', specs_MoG(5, 1, 1, 0.25))]
     for iteri in range(1):
-        for name, data in [('rec_gen1_'+str(iteri), rect_MoG(5))]:
+        for name, data in [('specs_gen1_'+str(iteri), specs_MoG1D(5))]:
             print('Iteration is ' + str(iteri))
             # Evaluation func.
             gen_eval_func = lambda tag, batch_size: \
@@ -60,18 +60,18 @@ if __name__ == '__main__':
 #                        **params)
 #
 #            # Disc. for MADGAN (multi-output)
-#            d_net = ToyNet(n_generators + 1, dim_x, dim_h=dim_h, last_act=tf.identity, act=leaky_relu, bn=False)
-#            params['batch_size'] = n_generators * 16
-#            train_madgan(data, g_net, d_net, name='MADGAN_' + name, n_generators=n_generators,
-#                         eval_funcs=[gen_eval_func('MADGAN_' + name, params['batch_size'])],
-#                         **params)
-#	    params['batch_size'] = args.batchsize
+            d_net = ToyNet(n_generators + 1, dim_x, dim_h=dim_h, last_act=tf.identity, act=leaky_relu, bn=False)
+            params['batch_size'] = n_generators * 16
+            train_madgan(data, g_net, d_net, name='MADGAN_' + name, n_generators=n_generators,
+                         eval_funcs=[gen_eval_func('MADGAN_' + name, params['batch_size'])],
+                         **params)
+	    params['batch_size'] = args.batchsize
 #
 #            # Disc. for WGAN and GoGAN (identity)
-            d_net = ToyNet(1, dim_x, dim_h=dim_h, last_act=tf.identity, act=leaky_relu, bn=False)
-            train_wgan(data, g_net, d_net, name='WGAN_' + name,
-                       eval_funcs=[gen_eval_func('WGAN_' + name, params['batch_size'])],
-                       **params)
+            #d_net = ToyNet(1, dim_x, dim_h=dim_h, last_act=tf.identity, act=leaky_relu, bn=False)
+            #train_wgan(data, g_net, d_net, name='WGAN_' + name,
+            #           eval_funcs=[gen_eval_func('WGAN_' + name, params['batch_size'])],
+            #           **params)
 #            train_gogan(data, g_net, d_net, name='GoGAN_' + name,
 #                       eval_funcs=[gen_eval_func('GoGAN_' + name)],
 #                       **params)

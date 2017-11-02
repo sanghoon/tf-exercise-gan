@@ -46,7 +46,7 @@ def create_dirs(name, g_name, d_name, hyperparams=None):
 def check_dataset_type(shape):
     assert(shape)
 
-    if len(shape) == 1:
+    if len(shape) == 1 or shape==(1,1):
         return 'synthetic'
     elif shape[2] == 1:
         assert(shape[0] == 28 and shape[1] == 28)
@@ -93,11 +93,11 @@ def scatter(samples, figId=None, retBytes=False, xlim=None, ylim=None):
     else:
         fig = plt.figure(figId)
         fig.clear()
-    
+
     n_gen = 8 #TODO
     colors = cm.rainbow(np.linspace(0, 1, n_gen)) #TODO
     colors = np.repeat(colors, len(samples[:,0])/n_gen, 0) #TODO
-    
+
     #plt.scatter(samples[:,0], samples[:,1], c = colors, alpha=0.1) #TODO
     plt.scatter(samples[:,0], samples[:,1], alpha=0.1)
 
