@@ -132,6 +132,8 @@ def train_trivial(data, g_net, d_net, name='TRIVIAL',
                 figs[i].canvas.draw()
                 if it % EVAL_INTERVAL == 0:
                     plt.savefig(out_dir + fig_names[i].format(it / 1000), bbox_inches='tight')
+                if PLT_CLOSE == 1:
+                    plt.close()
 
             # Run evaluation functions
             if it % EVAL_INTERVAL == 0:

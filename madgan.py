@@ -91,7 +91,7 @@ def train_madgan(data, g_net, d_net, name='MADGAN',
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.95)
     sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True, gpu_options=gpu_options))
     sess.run(tf.global_variables_initializer())
-    #print("Yooo!!!")
+
     writer = tf.summary.FileWriter(log_dir, sess.graph)
 
     print('{:>10}, {:>7}, {:>7}, {:>7}') \
@@ -130,7 +130,8 @@ def train_madgan(data, g_net, d_net, name='MADGAN',
                 figs[i].canvas.draw()
 	        if it % EVAL_INTERVAL == 0:
                     plt.savefig(out_dir + fig_names[i].format(it / 1000), bbox_inches='tight')
-
+            if PLT_CLOSE == 1:
+                plt.close()
             # Run evaluation functions
             if it % EVAL_INTERVAL == 0:
                 for func in eval_funcs:

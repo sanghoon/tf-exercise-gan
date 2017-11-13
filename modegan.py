@@ -108,7 +108,7 @@ def train_modegan(data, g_net, d_enc, d_net, name='MODEGAN',
             writer.add_summary(cur_summary, it)
 
         #if it % EVAL_INTERVAL == 0:
-        if it % 500 == 0: #TODO
+        if it % EVAL_INTERVAL == 0: #500
             # FIXME
             img_generator = lambda n: sess.run(output, feed_dict={x0:batch_xs,z0: sampler(n, dim_z)})
 
@@ -116,6 +116,8 @@ def train_modegan(data, g_net, d_enc, d_net, name='MODEGAN',
                 figs[i] = data.plot(img_generator, fig_id=i)
                 figs[i].canvas.draw()
                 plt.savefig(out_dir + fig_names[i].format(it / 1000), bbox_inches='tight')
+                if PLT_CLOSE == 1:
+                    plt.close()
 
             # Run evaluation functions
             for func in eval_funcs:

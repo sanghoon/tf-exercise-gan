@@ -14,9 +14,9 @@ import matplotlib.cm as cm
 # Global configs
 PRNT_INTERVAL = 100
 EVAL_INTERVAL = 2000
-SHOW_FIG_INTERVAL = 100
+SHOW_FIG_INTERVAL = 1000
 SAVE_INTERVAL = 4000
-
+PLT_CLOSE = 0 #TODO set it to 1 for 1D exp as seaborn needs it
 DATASETS = ['mnist', 'celeba']
 
 
@@ -46,7 +46,7 @@ def create_dirs(name, g_name, d_name, hyperparams=None):
 def check_dataset_type(shape):
     assert(shape)
 
-    if len(shape) == 1 or shape==(1,1):
+    if len(shape) == 1 or shape == (1,1):
         return 'synthetic'
     elif shape[2] == 1:
         assert(shape[0] == 28 and shape[1] == 28)
