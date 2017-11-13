@@ -16,7 +16,7 @@ PRNT_INTERVAL = 100
 EVAL_INTERVAL = 2000
 SHOW_FIG_INTERVAL = 1000
 SAVE_INTERVAL = 4000
-PLT_CLOSE = 0 #TODO set it to 1 for 1D exp as seaborn needs it
+PLT_CLOSE = 1 #TODO set it to 1 for 1D exp as seaborn needs it
 DATASETS = ['mnist', 'celeba']
 
 
