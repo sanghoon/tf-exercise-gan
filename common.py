@@ -9,13 +9,14 @@ import matplotlib.gridspec as gridspec
 import argparse
 import numpy as np
 import io
-
+import matplotlib.cm as cm
 
 # Global configs
 PRNT_INTERVAL = 100
 EVAL_INTERVAL = 2000
+SHOW_FIG_INTERVAL = 1000
 SAVE_INTERVAL = 4000
-
+PLT_CLOSE = 1 #TODO set it to 1 for 1D exp as seaborn needs it
 DATASETS = ['mnist', 'celeba']
 
 
@@ -45,7 +46,7 @@ def create_dirs(name, g_name, d_name, hyperparams=None):
 def check_dataset_type(shape):
     assert(shape)
 
-    if len(shape) == 1:
+    if len(shape) == 1 or shape == (1,1):
         return 'synthetic'
     elif shape[2] == 1:
         assert(shape[0] == 28 and shape[1] == 28)
@@ -93,7 +94,13 @@ def scatter(samples, figId=None, retBytes=False, xlim=None, ylim=None):
         fig = plt.figure(figId)
         fig.clear()
 
+    n_gen = 8 #TODO
+    colors = cm.rainbow(np.linspace(0, 1, n_gen)) #TODO
+    colors = np.repeat(colors, len(samples[:,0])/n_gen, 0) #TODO
+
+    #plt.scatter(samples[:,0], samples[:,1], c = colors, alpha=0.1) #TODO
     plt.scatter(samples[:,0], samples[:,1], alpha=0.1)
+
     if xlim:
         plt.xlim(xlim[0], xlim[1])
     if ylim:
@@ -112,7 +119,7 @@ def scatter(samples, figId=None, retBytes=False, xlim=None, ylim=None):
 def parse_args(batchsize=128, lr=1e-5, additional_args=[]):
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--gpu', type=int, default=0)
+    parser.add_argument('--gpu', type=int, default=0)   #TODO
     parser.add_argument('--batchsize', type=int, default=batchsize)
     parser.add_argument('--datasets', choices=DATASETS, default=DATASETS[0])
     parser.add_argument('--lr', type=float, default=lr)
