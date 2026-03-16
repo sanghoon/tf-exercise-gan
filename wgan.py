@@ -75,7 +75,6 @@ def train_wgan(data, g_net, d_net, name='WGAN',
 
     print('{:>10}, {:>7}, {:>7}, {:>7}') \
         .format('Iters', 'cur_LR', 'WGAN_D', 'WGAN_G')
-
     for it in range(int(n_iters)):
         for _ in range(5):
             batch_xs, batch_ys = data.train.next_batch(batch_size)
@@ -108,7 +107,8 @@ def train_wgan(data, g_net, d_net, name='WGAN',
                 figs[i].canvas.draw()
 
                 plt.savefig(out_dir + fig_names[i].format(it / 1000), bbox_inches='tight')
-
+                if PLT_CLOSE == 1:
+                    plt.close()
             # Run evaluation functions
             for func in eval_funcs:
                 func(it, img_generator)

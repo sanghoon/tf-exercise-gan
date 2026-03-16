@@ -25,8 +25,9 @@ class ToyNet(object):
 
             fc1 = fc('fc1', x, [self.dim_x, self.dim_h], **kwargs)
             fc2 = fc('fc2', fc1, [self.dim_h, self.dim_h], **kwargs)
+            fc3 = fc('fc4', fc2, [self.dim_h, self.dim_h], **kwargs) #TODO. fc4 as fc3 already used below
 
-        return fc2
+        return fc3 #TODO
 
     def latter(self, fc2, name=None, reuse=False):
         if not name:

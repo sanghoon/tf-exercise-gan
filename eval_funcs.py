@@ -4,14 +4,14 @@ from skimage.measure import compare_ssim as ssim
 
 
 # TODO: Refactoring
-def eval_synthetic(it, gen, data, tag='', sampler=None):
+def eval_synthetic(it, gen, data, tag='', batch_size = 128, sampler=None):
     metrics = OrderedDict()
 
     if sampler is not None:
-        z = sampler(1024)
+        z = sampler(batch_size * 8)       # TODO: Originally 1024
         samples = gen(z)        # Feed z
     else:
-        samples = gen(1024)     # Generate n images
+        samples = gen(batch_size * 8)     # Generate n images TODO: Originally 1024
 
     # Simple metric for MoG (VEEGAN, https://arxiv.org/abs/1705.07761)
     if 'get_hq_ratio' in dir(data) and 'get_n_modes' in dir(data):

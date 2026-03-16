@@ -1,9 +1,9 @@
 #!/usr/bin/env/python
 # Tensorflow impl. of DCGAN
 
+from datasets import data_celeba, data_mnist
 from tensorflow.examples.tutorials.mnist import input_data
 from common import *
-from datasets import data_celeba, data_mnist
 from models.celeba_models import *
 from models.mnist_models import *
 from eval_funcs import *
@@ -105,7 +105,8 @@ def train_dcgan(data, g_net, d_net, name='DCGAN',
                 figs[i].canvas.draw()
 
                 plt.savefig(out_dir + fig_names[i].format(it / 1000), bbox_inches='tight')
-
+                if PLT_CLOSE == 1:
+                    plt.close()
             # Run evaluation functions
             for func in eval_funcs:
                 func(it, img_generator)
